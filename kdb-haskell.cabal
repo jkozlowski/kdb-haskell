@@ -64,7 +64,7 @@ test-suite kdb-haskell-hpc
                      -O0 
                      -fhpc 
                      -hpcdir 
-                      dist/hpc/mix/kdb-haskell-tests
+                      dist/hpc/mix/kdb-haskell-hpc
                      -funbox-strict-fields
   hs-source-dirs:     src 
                     , tests
