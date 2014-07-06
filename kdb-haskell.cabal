@@ -1,0 +1,107 @@
+name:               kdb-haskell
+version:            0.1.0
+synopsis:           Haskell bindings for KDB+.
+description:        This package implements binding for KDB+ database (kx.com) in Haskell.
+category:           Finance, Database
+homepage:           https://github.com/jkozlowski/kdb-haskell
+bug-reports:        https://github.com/jkozlowski/kdb-haskell/issues
+license-file:       LICENSE
+license:            MIT
+
+author:             Jakub Kozlowski
+copyright:          2014 Jakub Kozlowski <mail@jakub-kozlowski.com>
+maintainer:         mail@jakub-kozlowski.com
+
+build-type:         Custom
+cabal-version:      >= 1.9.2
+extra-source-files: LICENCE
+                    README.md
+                    CONTRIBUTING.md
+
+source-repository head
+  location:
+      git@github.com:jkozlowski/kdb-haskell.git
+  type:
+      git
+
+flag documentation
+  default:
+      False
+
+library
+  exposed-modules:    Database.Kdb.Types
+  default-language:   Haskell2010
+  build-depends:      base >= 4 && < 5
+                    , mtl
+                    , bytestring
+                    , text
+                    , containers
+                    , binary
+                    , lens
+                    , QuickCheck == 2.6.*
+                    , directory
+  hs-source-dirs:     src
+  ghc-options:       -Wall 
+                     -fwarn-incomplete-patterns
+                     -funbox-strict-fields
+
+test-suite kdb-haskell-hpc
+  main-is:            Test.hs
+  type:               exitcode-stdio-1.0
+  build-depends:      base
+                    , bytestring
+                    , containers
+                    , text
+                    , time
+                    , binary
+                    , mtl
+                    , lens
+                    , tasty == 0.8
+                    , tasty-quickcheck == 0.8
+                    , QuickCheck == 2.6.*
+                    , Cabal >= 1.9.2
+  Ghc-Options:       -Wall 
+                     -O0 
+                     -fhpc 
+                     -hpcdir 
+                      dist/hpc/mix/kdb-haskell-tests
+                     -funbox-strict-fields
+  hs-source-dirs:     src 
+                    , tests
+
+test-suite kdb-haskell-tests
+  hs-source-dirs:     src 
+                    , tests
+  main-is:            Test.hs
+  type:               exitcode-stdio-1.0
+  build-depends:      base
+                    , bytestring
+                    , containers
+                    , text
+                    , time
+                    , binary
+                    , mtl
+                    , lens
+                    , tasty == 0.8
+                    , tasty-quickcheck == 0.8
+                    , QuickCheck == 2.6.*
+                    , Cabal >= 1.9.2
+                      -- Dependencies for rerunning tests in ghci 
+                    , fsnotify >= 0.0.11
+                    , system-filepath >= 0.4.7
+  Ghc-Options:       -Wall 
+                     -O0
+                     -funbox-strict-fields 
+
+benchmark kdb-haskell-benchmark
+  type:               exitcode-stdio-1.0
+  hs-source-dirs:     src
+                    , benchmarks
+  main-is:            Benchmark.hs
+  build-depends:      base
+                    , mtl
+                    , criterion
+                    , random
+  ghc-options:       -Wall
+                     -O2
+                     -funbox-strict-fields
