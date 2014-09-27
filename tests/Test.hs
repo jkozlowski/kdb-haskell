@@ -10,8 +10,9 @@
 -----------------------------------------------------------------------------
 module Main where
 
-import qualified Database.Kdb.TypesTest as TypesTest
-import qualified Test.Tasty             as Tasty
+import qualified Database.Kdb.Internal.TypesTest as TypesTest
+import qualified Database.Kdb.Internal.IPCTest   as IPCTest
+import qualified Test.Tasty                      as Tasty
 
 main :: IO ()
 main = Tasty.defaultMain tests
@@ -20,4 +21,5 @@ tests :: Tasty.TestTree
 tests = Tasty.testGroup "Tests"
   [
     TypesTest.tests
+  , IPCTest.tests
   ]

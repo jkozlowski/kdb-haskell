@@ -10,3 +10,8 @@ cabal-dev
 cabal.sandbox.config
 *.log
 .#*
+*.iml
+q/
+.idea
+out/
+report.html
