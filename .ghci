@@ -1,9 +1,58 @@
+import Data.List
+
 :{
-:def test const (
-     do putStrLn "Press any key to run tests, q to stop..."
+:def test (\args ->
+     do let createPattern p = if (null p)
+                                then "**"
+                                else if "*" `isSuffixOf` p
+                                       then p
+                                       else "**" ++ p ++ "**"
+            pattern = createPattern args
+            cmd p = unlines [ ":reload"
+                            , ":main --pattern " ++ p
+                            , ":test " ++ p
+                            ]
+        putStrLn $ "Going to run: " ++ pattern
+        putStrLn "Press any key to run tests, q to stop, anything else changes the test pattern..."
         x <- getLine
         return $ if (x == "q")
                     then ""
-                    else ":reload \n :main \n :test"
+                    else if null x
+                            then cmd pattern
+                            else let pattern' = createPattern x
+                                 in cmd $ createPattern x
      )
+:}
+
+-- -*- mode: haskell; -*-
+-- Begin copied material.
+-- <http://www.cs.kent.ac.uk/people/staff/cr3/toolbox/haskell/dot-squashed.ghci641>
+:{
+:def redir \varcmd -> return $
+        case break Data.Char.isSpace varcmd of
+            (var,_:cmd) -> unlines
+                [":set -fno-print-bind-result"
+                ,"tmp <- System.Directory.getTemporaryDirectory"
+                ,"(f,h) <- System.IO.openTempFile tmp \"ghci\""
+                ,"sto <- GHC.Handle.hDuplicate System.IO.stdout"
+                ,"GHC.Handle.hDuplicateTo h System.IO.stdout"
+                ,"System.IO.hClose h"
+                ,cmd
+                ,"GHC.Handle.hDuplicateTo sto System.IO.stdout"
+                ,"let readFileNow f = readFile f >>= \\t->Data.List.length t `seq` return t"
+                ,var++" <- readFileNow f"
+                ,"System.Directory.removeFile f"
+                ]
+            _ -> "putStrLn \"usage: :redir <var> <cmd>\""
+:}
+
+--- Integration with the hlint code style tool
+:{
+:def hlint \extra -> return $ unlines
+        [":unset +t +s"
+        ,":set -w"
+        ,":redir hlintvar1 :show modules"
+        ,":cmd return $ \":! hlint \" ++ unwords (map (takeWhile (/=',') . drop 2 . dropWhile (/= '(')) $ lines hlintvar1) ++ \" \" ++ " ++ show extra
+        ,":set +t +s -Wall"
+        ]
 :}

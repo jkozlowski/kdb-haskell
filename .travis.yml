@@ -1,16 +1,28 @@
 language: haskell
+ghc: 7.8.3
+
+cache:
+  directories:
+  - ~/.cabal
 
 before_install:
-  - cabal install --only-dependencies --enable-tests
+  - sudo apt-get update -qq
+  - sudo apt-get install -qq --force-yes libgd2-xpm ia32-libs ia32-libs-multiarch
+  - sed -f use-stackage.sed ~/.cabal/config > ~/.cabal/config.tmp
+  - rm ~/.cabal/config
+  - mv ~/.cabal/config.tmp ~/.cabal/config
+  - cat ~/.cabal/config
+  - cabal update
   - cabal install hpc-coveralls --avoid-reinstalls
 
 script:
-  - cat cabal.config >> ~/.cabal/config # use stackage - find a better way to do this
-  - cabal update
   - cabal install --only-dependencies --enable-tests
   - cabal configure --enable-tests --enable-library-coverage
   - cabal build
   - run-cabal-test --show-details=always
+#  - hlint src
+#  - hlint tests
+#  - hlint benchmarks
 
 after_script:
   - hpc-coveralls --exclude-dir=tests kdb-haskell-tests

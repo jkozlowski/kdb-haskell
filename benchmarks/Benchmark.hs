@@ -12,12 +12,19 @@
 module Main where
 
 import           Criterion.Main
+import           Criterion.Measurement
+import           Data.ByteString ()
+import           Data.Fixed (Pico)
+import           Data.Ratio
 import           Data.Int (Int16)
-import           Database.Kdb.Internal.Types (Value(..), cV, s, li)
+import           Data.Monoid ((<>))
+import           Database.Kdb.Internal.Types
 import           Foreign.C.Types (CChar)
 import           Text.Printf (printf)
-import qualified Control.Monad                as CM (forM_)
+import           Test.QuickCheck (Gen, arbitrary, listOf1, choose, generate, vectorOf, suchThat)
+import qualified Control.Monad                as CM
 import qualified Data.ByteString.Char8        as C
+import qualified Data.Time                    as Time
 import qualified Data.Vector                  as V
 import qualified Data.Vector.Storable         as SV
 import qualified Data.Vector.Storable.Mutable as MSV
@@ -31,42 +38,29 @@ import System.IO.Unsafe (unsafePerformIO)
 import Network.Socket hiding (recv)
 import Network.Socket.ByteString (recv, sendAll)
 
-fillS :: [[CChar]] -> Value
-fillS x = let (x',y') = createS x
-          in SV x' y'
-{-# INLINE fillS #-}
-
-createS :: [[CChar]] -> (Int, SV.Vector CChar)
-createS cl = unsafePerformIO $ do
-            v <- MSV.new (Prelude.length . Prelude.concat $ cl)
-            fill v 0 $ Prelude.concat cl
-            SV.unsafeFreeze v >>= \x -> return (Prelude.length cl,x)
-          where
-            fill _ _ [] = return ()
-            fill v i (x:xs) = MSV.unsafeWrite v i x >> fill v (i + 1) xs
-
--- | Constructor for T - a Q table - we must always build it using this function
--- 2 bytes for table header - 1 additional byte for dict type header
-fillT :: V.Vector Value -> Value
-fillT !xs = T (V.foldl' (\x y -> x + KT.size y) 3 xs) xs
-{-# INLINE fillT #-}
-
 -- function to convert list of bytestring into hex digits - useful for debugging kx IPC bytes
 bprint :: C.ByteString -> String
 bprint x = ("0x" ++ ) $ foldl (++) "" $ fmap (printf "%02x") $ C.unpack x
 
-main :: IO ()
-main = do
-  let shortv = HV (SV.fromList[1..10]) -- short list - for benchmark testing
-      il1 = IV $ SV.enumFromN 1 5000000 -- list of int
-      il2 = IV $ SV.enumFromN 1 5000000 -- list of int
-      il3 = IV $ SV.enumFromN 1 5000000 -- list of int
-      l1 = L (V.fromList [il1,il2,il3]) -- general list of int
-      sl1 = fillS [[97,0],[98,0],[99,0]] -- symbol list: `a`b`c
-      t = fillT (V.fromList [sl1,l1]) -- table t:([] a:til 5000000;b:til 5000000;c:til 5000000)
-      sl2 = s "t" -- atomic symbol `t
-      cl1 = cV "insert" -- string ".u.insert"
-      gl1 = li [cl1,sl2,t] -- general list (".u.insert";`t;t). t is the table from above
+-- test:([]kbool:();kbyte:();kshort:();kint:();klong:();
+-- kreal:();kfloat:();kchar:();ksymbol:();kboolv:();kbytev:();kshortv:();kintv:();
+-- klongv:();krealv:();kfloatv:();kcharv:();ksymbolv:())
+
+-- .u.upd:{[t;x] if not -16=type first first x;a:.z.n; x:$[0>type first x;a,x;(enlist(count first x)#a),x]]; t insert x}
+-- write schema statement: simply send a char vector
+
+main1 :: IO ()
+main1 = do
+--  let shortv = KShortV (SV.fromList[1..10]) -- short list - for benchmark testing
+--      il1 = V . KIntV $ SV.enumFromN 1 5000000 -- list of int
+--      il2 = V . KIntV $ SV.enumFromN 1 5000000 -- list of int
+--      il3 = V . KIntV $ SV.enumFromN 1 5000000 -- list of int
+--      l1 = KList (V.fromList [il1,il2,il3]) -- general list of int
+--      sl1 = symV ["a", "b", "c"]
+--      t = KT.table' (V.fromList [sl1,l1]) -- table t:([] a:til 5000000;b:til 5000000;c:til 5000000)
+--      sl2 = s "t" -- atomic symbol `t
+--      cl1 = charV "insert" -- string ".u.insert"
+--      gl1 = list [cl1,sl2,t] -- general list (".u.insert";`t;t). t is the table from above
 {--
   defaultMain [
         bench "ShortV" $ whnf SV.fromList ([1..10]::[Int16])
@@ -84,8 +78,58 @@ main = do
   connect sock (addrAddress serveraddr)
   sendAll sock "user:pwd\1\0"
   msg <- recv sock 1024
-  print "Received authentication"
+  putStrLn "Received authentication"
   print $ bprint msg
-  CM.forM_ [1..1] $ \x -> sendAll sock $ IPC.asyncIPC gl1
+
+  -- send the schema
+  sendAll sock . IPC.asyncIPC $ charV schema
+
+  -- Gen the rows
+  rows <- setupEnv 100
+
+  -- Send the rows
+  CM.forM_ rows $ \x -> sendAll sock $ IPC.asyncIPC x
+
+  -- Close the socket
   sClose sock
+
+setupEnv :: Int -> IO [KT.Value]
+setupEnv count = CM.replicateM count (generate randomRow)
+
+benchmark :: IO ()
+benchmark = defaultMain [
+    env (setupEnv 1000000) $ \ ~rows ->
+        bgroup "bla" [
+            bench "length" $ nf (map IPC.asyncIPC) rows
+        ]
+   ]
+
+--benchmark2 :: IO ()
+--benchmark2 = do
+--    (m, time) <- flip measure 1 $ env setupEnv $ \ ~rows ->
+--        bgroup "bla" [
+--            bench "length" $ nf (map IPC.asyncIPC) rows
+--        ]
+--    return ()
+
+main2 :: IO ()
+main2 = do
+  addrinfos <- getAddrInfo Nothing (Just "127.0.0.1") (Just "7777")
+  let serveraddr = head addrinfos
+  sock <- socket (addrFamily serveraddr) Stream defaultProtocol
+  connect sock (addrAddress serveraddr)
+
+  -- Login
+  sendAll sock "user:pwd\1\0"
+  msg <- recv sock 1024
+  putStrLn "Received authentication"
+  print $ bprint msg
+
+  -- Send the schema
+  sendAll sock . IPC.asyncIPC $ charV schema
+
+  sClose sock
+
+main :: IO ()
+main = main1
 

@@ -5,6 +5,7 @@ CABALSANDBOX := ".cabal-sandbox"
 all: install hpc bench haddock run
 
 bench: install
+	cabal configure --enable-benchmarks
 	cabal build
 	cabal bench --benchmark-options="-o report.html"
 

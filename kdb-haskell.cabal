@@ -1,4 +1,3 @@
-
 name:               kdb-haskell
 version:            0.1.0
 synopsis:           Haskell bindings for KDB+.
@@ -33,19 +32,21 @@ library
   exposed-modules:    
   other-modules:      Database.Kdb.Internal.Types
                     , Database.Kdb.Internal.IPC
+                    , Database.Kdb.Internal.DateTimeTypes
   default-language:   Haskell2010
   build-depends:      base >= 4 && < 5
-                    , mtl
+                    , deepseq
+                    , cpu
+                    , time
+                    , attoparsec
                     , bytestring
+                      -- see if possible to get rid of: necessary for the
+                      -- conversions between Word32/Word64 and Float/Double.
+                    , array
                     , vector
-                    , text
-                    , containers
-                    , binary
-                    , lens
                     , QuickCheck
-                    , directory
   hs-source-dirs:     src
-  ghc-options:       -Wall 
+  ghc-options:       -Wall
                      -fwarn-incomplete-patterns
                      -funbox-strict-fields
 
@@ -55,37 +56,73 @@ test-suite kdb-haskell-tests
   main-is:            Test.hs
   type:               exitcode-stdio-1.0
   build-depends:      base
+                    , deepseq
+                    , deepseq-generics
+                    , cpu
                     , bytestring
+                    , array
                     , base16-bytestring
                     , containers
                     , vector
+                    , attoparsec
                     , text
                     , time
+                    , timezone-series  >= 0.1.3
+                    , timezone-olson
+                    , tzdata == 0.1.20140612.0
                     , binary
                     , mtl
                     , lens
                     -- Testing
                     , tasty
                     , tasty-quickcheck
+                    --, tasty-smallcheck
                     , tasty-hunit
                     , QuickCheck
+                    , quickcheck-io
+                    , network
+                    , process
+                    , directory
+                    , system-filepath
+                    , resourcet
+                    , transformers
+                    , retry
                     , Cabal
-  Ghc-Options:       -Wall
+                    -- This needs to be disabled for now, until I figure out
+                    -- why this fails to build.
+                    --, hlint
+  ghc-options:       -Wall
                      -O0
-                     -funbox-strict-fields 
+                     -funbox-strict-fields
 
 benchmark kdb-haskell-benchmark
   type:               exitcode-stdio-1.0
   hs-source-dirs:     src
+                    , tests
                     , benchmarks
   main-is:            Benchmark.hs
   build-depends:      base
-                    , mtl
-                    , vector
+                    , deepseq
+                    , deepseq-generics
+                    , cpu
                     , bytestring
+                    , array
+                    , base16-bytestring
+                    , containers
+                    , vector
+                    , attoparsec
+                    , text
+                    , time
+                    , timezone-series >= 0.1.3
+                    , binary
+                    , mtl
+                    , lens
+                    -- Benchmark deps
                     , network
+                    , time
                     , criterion
-                    , random
+                    , QuickCheck
   ghc-options:       -Wall
                      -O2
                      -funbox-strict-fields
+                     -rtsopts
