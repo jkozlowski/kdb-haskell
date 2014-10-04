@@ -27,6 +27,7 @@ init:
 	cabal sandbox init
 
 install: init
+	cabal install c2hs
 	cabal install --enable-benchmarks --enable-tests --flags=documentation --only-dependencies
 
 repl:

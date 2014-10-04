@@ -48,6 +48,7 @@ library
   ghc-options:       -Wall 
                      -fwarn-incomplete-patterns
                      -funbox-strict-fields
+  build-tools:        c2hs
 
 test-suite kdb-haskell-tests
   hs-source-dirs:     src 
@@ -70,9 +71,10 @@ test-suite kdb-haskell-tests
                     , tasty-hunit
                     , QuickCheck
                     , Cabal
-  Ghc-Options:       -Wall
+  ghc-Options:       -Wall
                      -O0
-                     -funbox-strict-fields 
+                     -funbox-strict-fields
+  build-tools:        c2hs
 
 benchmark kdb-haskell-benchmark
   type:               exitcode-stdio-1.0
@@ -89,3 +91,4 @@ benchmark kdb-haskell-benchmark
   ghc-options:       -Wall
                      -O2
                      -funbox-strict-fields
+  build-tools:        c2hs
