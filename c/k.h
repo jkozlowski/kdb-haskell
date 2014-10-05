@@ -1,5 +1,6 @@
 #ifndef KX
 #define KX
+#define KXVER 3
 typedef char*S,C;typedef unsigned char G;typedef short H;typedef int I;typedef long long J;typedef float E;typedef double F;typedef void V;
 #ifdef __cplusplus
 extern"C"{

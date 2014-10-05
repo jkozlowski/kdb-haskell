@@ -13,5 +13,22 @@
 -----------------------------------------------------------------------------
 module Database.Kdb.Internal.C where
 
+import Foreign.C
+import Foreign.C.Types
+import Foreign.C.String
+import Foreign.Ptr
+
+#define KXVER 3
+#include "k.h"
+
+{#fun khpu as connect
+ {`String', fromIntegral `Int', `String'} -> `Int' fromIntegral#}
+
+main :: IO ()
+main = do
+ con <- connect "localhost" 7777 ""
+ return ()
+
+
 
 

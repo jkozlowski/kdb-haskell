@@ -15,9 +15,10 @@ maintainer:         mail@jakub-kozlowski.com
 
 build-type:         Custom
 cabal-version:      >= 1.9.2
-extra-source-files: LICENCE
-                    README.md
-                    CONTRIBUTING.md
+extra-source-files:   LICENCE
+                    , README.md
+                    , CONTRIBUTING.md
+                    , kdb-c
 
 source-repository head
   location:
@@ -25,14 +26,11 @@ source-repository head
   type:
       git
 
-flag documentation
-  default:
-      False
-
 library
   exposed-modules:    
   other-modules:      Database.Kdb.Internal.Types
                     , Database.Kdb.Internal.IPC
+                    , Database.Kdb.Internal.C
   default-language:   Haskell2010
   build-depends:      base >= 4 && < 5
                     , mtl
@@ -45,7 +43,15 @@ library
                     , QuickCheck
                     , directory
   hs-source-dirs:     src
-  ghc-options:       -Wall 
+  -- The location of the header files
+  include-dirs:       c
+  -- The header files to be included
+  includes:           k.h
+  -- Header files to install - not sure why this is necessary
+  install-includes:   k.h
+  ld-options:         /Users/jakubkozlowski/Programming/IntelliJ/kdb-haskell/c/m64/c.o
+  ld-options:         /Users/jakubkozlowski/Programming/IntelliJ/kdb-haskell/c/m64/cst.o
+  ghc-options:       -Wall
                      -fwarn-incomplete-patterns
                      -funbox-strict-fields
   build-tools:        c2hs
@@ -71,6 +77,14 @@ test-suite kdb-haskell-tests
                     , tasty-hunit
                     , QuickCheck
                     , Cabal
+  -- The location of the header files
+  include-dirs:       c
+  -- The header files to be included
+  includes:           k.h
+  -- Header files to install - not sure why this is necessary
+  install-includes:   k.h
+  ld-options:         /Users/jakubkozlowski/Programming/IntelliJ/kdb-haskell/c/m64/c.o
+  ld-options:         /Users/jakubkozlowski/Programming/IntelliJ/kdb-haskell/c/m64/cst.o
   ghc-Options:       -Wall
                      -O0
                      -funbox-strict-fields

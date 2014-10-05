@@ -13,6 +13,7 @@ module Database.Kdb.Internal.TypesTest (tests) where
 import           Test.Tasty
 import           Test.Tasty.QuickCheck as QC
 import           Database.Kdb.Internal.Types as Types
+import           Database.Kdb.Internal.C
 
 tests :: TestTree
 tests = testGroup "Database.Kdb.Internal.Types" [qcProps]
