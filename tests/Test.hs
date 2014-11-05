@@ -13,6 +13,7 @@ module Main where
 import qualified Database.Kdb.Internal.DateTimeTypesTest as DateTimeTypesTest
 import qualified Database.Kdb.Internal.IntegrationTest   as IntegrationTest
 import qualified Database.Kdb.Internal.IPCTest           as IPCTest
+import qualified Language.Q.LexerTest                    as Lexer
 import qualified Test.Tasty                              as Tasty
 
 main :: IO ()
@@ -21,6 +22,7 @@ main = Tasty.defaultMain tests
 tests :: Tasty.TestTree
 tests = Tasty.testGroup "Tests"
   [ DateTimeTypesTest.tests
-  , IPCTest.tests
   , IntegrationTest.tests
+  , IPCTest.tests
+  , Lexer.tests
   ]
