@@ -18,6 +18,7 @@ before_install:
   - cabal install hpc-coveralls --avoid-reinstalls
 
 script:
+  - cabal sandbox init
   - cabal install --only-dependencies --enable-tests
   - cabal configure --enable-tests --enable-library-coverage
   - cabal build
