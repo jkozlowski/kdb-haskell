@@ -14,6 +14,7 @@ before_install:
   - cd happy
   - cabal sandbox init
   - cabal install happy==1.19.2
+  - cat /home/travis/.tools/happy/.cabal-sandbox/logs/happy-1.19.2.log
 
   - cd ..
   - mkdir alex
