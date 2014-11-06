@@ -13,8 +13,7 @@ before_install:
   - mkdir happy
   - cd happy
   - cabal sandbox init
-  - cabal install happy==1.19.2
-  - cat /home/travis/.tools/happy/.cabal-sandbox/logs/happy-1.19.2.log
+  - cabal install happy==1.19.2 || { cat /home/travis/.tools/happy/.cabal-sandbox/logs/happy-1.19.2.log; exit 1}
 
   - cd ..
   - mkdir alex
