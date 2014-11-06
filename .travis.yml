@@ -13,7 +13,7 @@ before_install:
   - mkdir happy
   - cd happy
   - cabal sandbox init
-  - cabal install happy==1.19.3
+  - cabal install happy==1.19.2
 
   - cd ..
   - mkdir alex
