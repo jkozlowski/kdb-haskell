@@ -6,8 +6,21 @@ cache:
   - ~/.cabal
 
 before_install:
+  - pushd .
+  - cd ~/.tools
+
+  - mkdir happy
+  - cd happy
+  - cabal sandbox init
   - cabal install happy==1.19.3
+
+  - cd ..
+  - mkdir alex
+  - cd alex
+  - cabal sandbox init
   - cabal install alex==3.1.3
+
+  - popd
   - sudo apt-get update -qq
   - sudo apt-get install -qq --force-yes libgd2-xpm ia32-libs ia32-libs-multiarch
   - sed -f use-stackage.sed ~/.cabal/config > ~/.cabal/config.tmp
@@ -18,6 +31,8 @@ before_install:
   - cabal install hpc-coveralls --avoid-reinstalls
 
 script:
+  - find ~/.tools
+  - export PATH "~/.tools/happy/$PATH"
   - cabal sandbox init
   - cabal install --only-dependencies --enable-tests
   - cabal configure --enable-tests --enable-library-coverage
