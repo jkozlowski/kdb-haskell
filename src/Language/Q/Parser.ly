@@ -64,7 +64,7 @@ apara	:: { Doc RdrName }
 ulpara  :: { Doc RdrName }
 	: '-' para		{ $2 }
 
-olpara  :: { Doc RdrName } 
+olpara  :: { Doc RdrName }
 	: '(n)' para		{ $2 }
 
 defpara :: { (Doc RdrName, Doc RdrName) }

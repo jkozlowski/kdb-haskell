@@ -72,15 +72,14 @@ test-suite kdb-haskell-tests
                     , attoparsec
                     , text
                     , time
-                    , timezone-series  >= 0.1.3
-                    , timezone-olson
-                    , tzdata == 0.1.20140612.0
                     , binary
                     , mtl
                     , lens
                     -- Testing
                     , tasty
                     , tasty-quickcheck
+                    , tasty-golden
+                    , filepath
                     --, tasty-smallcheck
                     , tasty-hunit
                     , QuickCheck
