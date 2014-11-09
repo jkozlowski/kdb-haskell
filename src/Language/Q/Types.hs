@@ -9,10 +9,11 @@
 -- Types used by the parser and lexer.
 -----------------------------------------------------------------------------
 module Language.Q.Types (
-    main
+    SimpleDT(..)
+  , main
   ) where
 
-
+data SimpleDT = StringDT String
 
 main :: IO ()
 main = return ()

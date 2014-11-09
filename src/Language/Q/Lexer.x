@@ -154,8 +154,10 @@ q :-
 <0>  "~"           { lex' MATCH         }
   -- More complex tokens
   -- TODO: Need to prohibit multiline strings
-<0>  \` $sym*       { \(p,_,_,s) i -> return . Lexeme p . SYM $ take (i - 1) . tail $ s }
-<0>  \" @string* \" { \(p,_,_,s) i -> return . Lexeme p . STRING $ take (i - 2) . tail $ s }
+--<0>  \` $sym*       { \(p,_,_,s) i -> return . Lexeme p . SYM $ take (i - 1) . tail $ s }
+--<0>  \" @string* \" { \(p,_,_,s) i -> return . Lexeme p . STRING $ take (i - 2) . tail $ s }
+<0>  \` $sym*       { \(p,_,_,s) i -> return . SYM    $! take (i - 1) . tail $ s }
+<0>  \" @string* \" { \(p,_,_,s) i -> return . STRING $! take (i - 2) . tail $ s }
 <0>  @id            { lex ID }
 
 {
@@ -192,31 +194,40 @@ data Token
   | FILL
   | TAKE
   | MATCH
-  | SYM           {-# UNPACK #-} String
-  | STRING        {-# UNPACK #-} String
-  | ID            {-# UNPACK #-} String
+  | SYM           {-# UNPACK #-} !String
+  | STRING        {-# UNPACK #-} !String
+  | ID            {-# UNPACK #-} !String
   | EOF
   deriving (Eq, Show)
 
 -- | Returns the @EOF@ token in the monad.
-alexEOF = return $! Lexeme (AlexPn 0 0 0) EOF
+--alexEOF = return $! Lexeme (AlexPn 0 0 0) EOF
+alexEOF = return $! EOF
+--
 {-# INLINE alexEOF #-}
 
 -- | @EOF@ lexeme: the position is set to nonsense.
-eof = Lexeme (AlexPn 0 0 0) EOF
+--eof = Lexeme (AlexPn 0 0 0) EOF
+eof = EOF
 
 -- | Creates a lexeme that takes a string parameter.
-lex :: (String -> Token) -> AlexAction Lexeme
-lex t = \(p,_,_,s) i -> return . Lexeme p . t $! take i s
+--lex :: (String -> Token) -> AlexAction Lexeme
+--lex t = \(p,_,_,s) i -> return . Lexeme p . t $! take i s
+lex :: (String -> Token) -> AlexAction Token
+lex t = \(p,_,_,s) i -> return . t $! take i s
 
 -- For constructing tokens that only capture the position.
-lex' :: Token -> AlexAction Lexeme
-lex' t = \(p,_,_,_) _ -> return $ Lexeme p t
+--lex' :: Token -> AlexAction Lexeme
+--lex' t = \(p,_,_,_) _ -> return $! Lexeme p t
+lex' :: Token -> AlexAction Token
+lex' t = \(_,_,_,_) _ -> return $! t
 
 -- | Lexes a string to a list of tokens.
-scanner :: String -> Either String [Lexeme]
+--scanner :: String -> Either String [Lexeme]
+scanner :: String -> Either String [Token]
 scanner str = runAlex str $ do
-  let loop :: Alex [Lexeme]
+--let loop :: Alex [Lexeme]
+  let loop :: Alex [Token]
       loop = do l <- alexMonadScan
                 if l == eof
                   then return [l]

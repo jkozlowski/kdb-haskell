@@ -25,7 +25,7 @@ tests = testGroup "Language.Q.Lexer" [ unitTests, props ]
 unitTests :: TestTree
 unitTests = testGroup "HUnit"
     (map (\(s, t) ->
-      let expected = [Lexeme (AlexPn 0 1 1) t, eof]
+      let expected = [{-Lexeme (AlexPn 0 1 1)-} t, eof]
       in testCase (show expected) $ testLex s @?= expected) tokens)
 
 props :: TestTree
@@ -42,7 +42,7 @@ instance Show (AlexPosn -> Token) where
 correct :: [(String, Token)] -> Gen Prop
 correct tkns = propertyIO $
   let tokens' _ []           = [eof]
-      tokens' c ((s', t):xs) = Lexeme (AlexPn c 1 (c + 1)) t : tokens' (c + length s' + 1) xs
+      tokens' c ((s', t):xs) = {-Lexeme (AlexPn c 1 (c + 1))-} t : tokens' (c + length s' + 1) xs
       s = unwords $ map fst tkns
       msg = "text=" ++ s
   in assertEqual msg (tokens' 0 tkns) (testLex s)
@@ -82,7 +82,8 @@ tokens = [
   , ("H_1", ID "H_1")
   ]
 
-testLex :: String -> [Lexeme]
+--testLex :: String -> [Lexeme]
+testLex :: String -> [Token]
 testLex s = case scanner s of
           Left msg -> error msg
           Right a  -> a

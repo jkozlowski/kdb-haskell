@@ -1,0 +1,14 @@
+HAPPY = happy
+HAPPY_OPTS =
+HAPPY_FILE = dist/build/Language/Q/Parser.hs
+ALEX = alex
+ALEX_OPTS =
+ALEX_FILE = dist/build/Language/Q/Lexer.hs
+
+all: $(HAPPY_FILE) $(ALEX_FILE)
+
+$(HAPPY_FILE): src/Language/Q/Parser.y
+	$(HAPPY) $(HAPPY_OPTS) $< -o $@
+
+$(ALEX_FILE): src/Language/Q/Lexer.x
+	$(ALEX) $(ALEX_OPTS) $< -o $@

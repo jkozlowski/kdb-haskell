@@ -1,4 +1,14 @@
+import Control.Monad
 import Data.List
+import System.Process
+import System.Exit
+
+:{
+:def rh (\_ ->
+     do rr <- system "make -f Makefile_alexhappy"
+        case rr of { ExitSuccess -> return ":reload" ;
+                     _           -> return "" })
+:}
 
 :{
 :def test (\args ->
@@ -8,7 +18,7 @@ import Data.List
                                        then p
                                        else "**" ++ p ++ "**"
             pattern = createPattern args
-            cmd p = unlines [ ":reload"
+            cmd p = unlines [ ":rh"
                             , ":main --pattern " ++ p
                             , ":test " ++ p
                             ]
