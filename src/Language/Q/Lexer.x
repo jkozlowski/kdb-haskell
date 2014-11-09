@@ -36,10 +36,16 @@ import Control.Applicative
 
 %wrapper "monad"
 
+-- Simple tokens
+@colon   = ":"
+@dropcut = "_"
+@point   = "."
+
+-- General patterns
 $digit  = 0-9            -- digits
 $letter = [a-zA-Z]       -- alphabetic characters
-@colon  = ":"
 $sym    = [$letter $digit \_ \. \/ \:]
+@hex = $digit | [a-FA-F]
 
 -- String handling with escape sequences
 $escchars = [abfnrtv\\"\'&]
@@ -48,10 +54,16 @@ $escchars = [abfnrtv\\"\'&]
 @string = $printable # [\"] | " " | @escape
 @nl     = "\n"
 
+-- Complex named patterns
+@id = $letter
+    | $letter (@dropcut | $letter | $digit)* ($letter | $digit)
+-- I cannot represent this in the lexer + I'm not sure it should be? | (@point @id)+
+
 -- Number types
 @longtype   = "j"
 @shorttype  = "h"
 @realtype   = "e"
+@floattype  = "f"
 
 -- Temporal types
 @minutetype = "u"
@@ -76,41 +88,75 @@ $escchars = [abfnrtv\\"\'&]
                | @datetype
                | @datetimetype
 
+@null = '0' ('x' '0' '0' | 'b' | 'N' @nullextension )
 
-tokens :-
+-- Infinities
+@infinityextension = @longtype
+                   | @shorttype
+                   | @realtype
+                   | @timetype
+                   | @datetype
+                   | @datetimetype
+
+@infinity = '-'? '0' ('W' @infinityextension)
+
+-- Primitives
+@boolean        = '1' 'b'
+@byte           = '0' 'x' @hex @hex?
+@integer_prefix = ('-')? $digit+
+@short          = @integer_prefix @shorttype
+@long           = @integer_prefix @longtype
+@float_prefix   = @integer_prefix '.' $digit*
+@real           = @float_prefix @realtype
+                | @integer_prefix @realtype
+@float          = @float_prefix @floattype?
+                | @integer_prefix @floattype
+                | '0n'
+                | '0w'
+                | '-0w'
+                | '0Nf'
+                | '0Wf'
+                | '-0Wf'
+@integer        = @integer_prefix
+                | '0N'
+                | '0W'
+                | '-0W'
+
+q :-
   -- Simple tokens
-  $white+     ;
-  "{"           { lex' LCURLY        }
-  "}"           { lex' RCURLY        }
-  @colon        { lex' COLON         }
-  @colon @colon { lex' COLONCOLON    }
-  ";"           { lex' SEMICOLON     }
-  "["           { lex' LBRACK        }
-  "]"           { lex' RBRACK        }
-  "("           { lex' LBRACE        }
-  ")"           { lex' RBRACE        }
-  ","           { lex' COMMA         }
-  "."           { lex' POINT         }
-  "+"           { lex' PLUS          }
-  "-"           { lex' MINUS         }
-  "*"           { lex' MULT          }
-  "%"           { lex' DIV           }
-  "@"           { lex' APPLY         }
-  "?"           { lex' QUESTION      }
-  "$"           { lex' DOLLAR        }
-  "<>"          { lex' NOT_EQUAL     }
-  "="           { lex' EQUAL         }
-  "<"           { lex' LESS_THAN     }
-  ">"           { lex' GREATER_THAN  }
-  "!"           { lex' EXCL          }
-  "_"           { lex' DROP_CUT      }
-  "^"           { lex' FILL          }
-  "#"           { lex' TAKE          }
-  "~"           { lex' MATCH         }
+<0>  $white+       ;
+<0>  "{"           { lex' LCURLY        }
+<0>  "}"           { lex' RCURLY        }
+<0>  @colon        { lex' COLON         }
+<0>  @colon @colon { lex' COLONCOLON    }
+<0>  ";"           { lex' SEMICOLON     }
+<0>  "["           { lex' LBRACK        }
+<0>  "]"           { lex' RBRACK        }
+<0>  "("           { lex' LBRACE        }
+<0>  ")"           { lex' RBRACE        }
+<0>  ","           { lex' COMMA         }
+<0>  @point        { lex' POINT         }
+<0>  "+"           { lex' PLUS          }
+<0>  "-"           { lex' MINUS         }
+<0>  "*"           { lex' MULT          }
+<0>  "%"           { lex' DIV           }
+<0>  "@"           { lex' APPLY         }
+<0>  "?"           { lex' QUESTION      }
+<0>  "$"           { lex' DOLLAR        }
+<0>  "<>"          { lex' NOT_EQUAL     }
+<0>  "="           { lex' EQUAL         }
+<0>  "<"           { lex' LESS_THAN     }
+<0>  ">"           { lex' GREATER_THAN  }
+<0>  "!"           { lex' EXCL          }
+<0>  @dropcut      { lex' DROP_CUT      }
+<0>  "^"           { lex' FILL          }
+<0>  "#"           { lex' TAKE          }
+<0>  "~"           { lex' MATCH         }
   -- More complex tokens
   -- TODO: Need to prohibit multiline strings
-  \` $sym*      { \(p,_,_,s) i -> return . Lexeme p . SYM $ take (i - 1) . tail $ s }
-  \" @string* \" { \(p,_,_,s) i -> return . Lexeme p . STRING $ take (i - 2) . tail $ s }
+<0>  \` $sym*       { \(p,_,_,s) i -> return . Lexeme p . SYM $ take (i - 1) . tail $ s }
+<0>  \" @string* \" { \(p,_,_,s) i -> return . Lexeme p . STRING $ take (i - 2) . tail $ s }
+<0>  @id            { lex ID }
 
 {
 -- | Main token type that indicates the position of the token in the source file.
@@ -148,6 +194,7 @@ data Token
   | MATCH
   | SYM           {-# UNPACK #-} String
   | STRING        {-# UNPACK #-} String
+  | ID            {-# UNPACK #-} String
   | EOF
   deriving (Eq, Show)
 
@@ -157,6 +204,10 @@ alexEOF = return $! Lexeme (AlexPn 0 0 0) EOF
 
 -- | @EOF@ lexeme: the position is set to nonsense.
 eof = Lexeme (AlexPn 0 0 0) EOF
+
+-- | Creates a lexeme that takes a string parameter.
+lex :: (String -> Token) -> AlexAction Lexeme
+lex t = \(p,_,_,s) i -> return . Lexeme p . t $! take i s
 
 -- For constructing tokens that only capture the position.
 lex' :: Token -> AlexAction Lexeme

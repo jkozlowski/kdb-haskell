@@ -78,6 +78,8 @@ tokens = [
   , ("~"  , MATCH        )
   , ("`hello",    SYM "hello")
   , ("\"Hello\"", STRING "Hello")
+  , ("H"  , ID "H")
+  , ("H_1", ID "H_1")
   ]
 
 testLex :: String -> [Lexeme]
