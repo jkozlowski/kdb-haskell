@@ -11,21 +11,22 @@
 -- Lexer for the q language.
 -----------------------------------------------------------------------------
 module Language.Q.Lexer
-  ( skip
-  , andBegin
-  , alexEOF
-  , alexSetInput
+  ( alexSetInput
   , alexGetInput
   , alexError
   , alexScan
-  , alexMonadScan
   , ignorePendingBytes
   , alexGetStartCode
   , runAlex
   , Alex(..)
-  , Token(..)
   , AlexReturn(..)
   , AlexPosn(..)
+  , eof
+  , alexEOF
+    -- Tokens
+  , Lexeme(..)
+  , Token(..)
+    -- Simple scanner for testing.
   , scanner
   ) where
 
@@ -108,58 +109,67 @@ tokens :-
   "~"           { lex' MATCH         }
   -- More complex tokens
   -- TODO: Need to prohibit multiline strings
-  \` $sym*      { \(p,_,_,s) i -> return . SYM p $ take (i - 1) . tail $ s }
-  \" @string* \" { \(p,_,_,s) i -> return . STRING p $ take (i - 2) . tail $ s }
+  \` $sym*      { \(p,_,_,s) i -> return . Lexeme p . SYM $ take (i - 1) . tail $ s }
+  \" @string* \" { \(p,_,_,s) i -> return . Lexeme p . STRING $ take (i - 2) . tail $ s }
 
 {
+-- | Main token type that indicates the position of the token in the source file.
+data Lexeme = Lexeme {-# UNPACK #-} !AlexPosn {-# UNPACK #-} !Token
+  deriving (Eq, Show)
+
 -- | Possible tokens in a q script.
 data Token
-  = LCURLY        {-# UNPACK #-} !AlexPosn
-  | RCURLY        {-# UNPACK #-} !AlexPosn
-  | COLON         {-# UNPACK #-} !AlexPosn
-  | COLONCOLON    {-# UNPACK #-} !AlexPosn
-  | SEMICOLON     {-# UNPACK #-} !AlexPosn
-  | LBRACK        {-# UNPACK #-} !AlexPosn
-  | RBRACK        {-# UNPACK #-} !AlexPosn
-  | LBRACE        {-# UNPACK #-} !AlexPosn
-  | RBRACE        {-# UNPACK #-} !AlexPosn
-  | COMMA         {-# UNPACK #-} !AlexPosn
-  | POINT         {-# UNPACK #-} !AlexPosn
-  | PLUS          {-# UNPACK #-} !AlexPosn
-  | MINUS         {-# UNPACK #-} !AlexPosn
-  | MULT          {-# UNPACK #-} !AlexPosn
-  | DIV           {-# UNPACK #-} !AlexPosn
-  | APPLY         {-# UNPACK #-} !AlexPosn
-  | QUESTION      {-# UNPACK #-} !AlexPosn
-  | DOLLAR        {-# UNPACK #-} !AlexPosn
-  | NOT_EQUAL     {-# UNPACK #-} !AlexPosn
-  | EQUAL         {-# UNPACK #-} !AlexPosn
-  | LESS_THAN     {-# UNPACK #-} !AlexPosn
-  | GREATER_THAN  {-# UNPACK #-} !AlexPosn
-  | EXCL          {-# UNPACK #-} !AlexPosn
-  | DROP_CUT      {-# UNPACK #-} !AlexPosn
-  | FILL          {-# UNPACK #-} !AlexPosn
-  | TAKE          {-# UNPACK #-} !AlexPosn
-  | MATCH         {-# UNPACK #-} !AlexPosn
-  | SYM           {-# UNPACK #-} !AlexPosn {-# UNPACK #-} String
-  | STRING        {-# UNPACK #-} !AlexPosn {-# UNPACK #-} String
+  = LCURLY
+  | RCURLY
+  | COLON
+  | COLONCOLON
+  | SEMICOLON
+  | LBRACK
+  | RBRACK
+  | LBRACE
+  | RBRACE
+  | COMMA
+  | POINT
+  | PLUS
+  | MINUS
+  | MULT
+  | DIV
+  | APPLY
+  | QUESTION
+  | DOLLAR
+  | NOT_EQUAL
+  | EQUAL
+  | LESS_THAN
+  | GREATER_THAN
+  | EXCL
+  | DROP_CUT
+  | FILL
+  | TAKE
+  | MATCH
+  | SYM           {-# UNPACK #-} String
+  | STRING        {-# UNPACK #-} String
   | EOF
   deriving (Eq, Show)
 
 -- | Returns the @EOF@ token in the monad.
-alexEOF = return EOF
+alexEOF = return $! Lexeme (AlexPn 0 0 0) EOF
+{-# INLINE alexEOF #-}
+
+-- | @EOF@ lexeme: the position is set to nonsense.
+eof = Lexeme (AlexPn 0 0 0) EOF
 
 -- For constructing tokens that only capture the position.
-lex' :: (AlexPosn -> a) -> AlexAction a
-lex' f = \(p,_,_,_) i -> return $ f p
+lex' :: Token -> AlexAction Lexeme
+lex' t = \(p,_,_,_) _ -> return $ Lexeme p t
 
 -- | Lexes a string to a list of tokens.
+scanner :: String -> Either String [Lexeme]
 scanner str = runAlex str $ do
-  let loop :: Alex [Token]
-      loop = do tok <- alexMonadScan
-                if tok == EOF
-                  then return [tok]
-                  else do toks <- loop
-                          return $! tok : toks
+  let loop :: Alex [Lexeme]
+      loop = do l <- alexMonadScan
+                if l == eof
+                  then return [l]
+                  else do ls <- loop
+                          return $! l : ls
   loop
 }

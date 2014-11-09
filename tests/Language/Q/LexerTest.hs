@@ -11,7 +11,8 @@
 -----------------------------------------------------------------------------
 module Language.Q.LexerTest (tests) where
 
-import           Language.Q.Lexer      (AlexPosn (..), Token (..), scanner)
+import           Language.Q.Lexer      (AlexPosn (..), Lexeme (..), Token (..),
+                                        eof, scanner)
 import           Test.QuickCheck
 import           Test.QuickCheck.IO    (propertyIO)
 import           Test.Tasty            (TestTree, testGroup)
@@ -24,7 +25,7 @@ tests = testGroup "Language.Q.Lexer" [ unitTests, props ]
 unitTests :: TestTree
 unitTests = testGroup "HUnit"
     (map (\(s, t) ->
-      let expected = [t (AlexPn 0 1 1), EOF]
+      let expected = [Lexeme (AlexPn 0 1 1) t, eof]
       in testCase (show expected) $ testLex s @?= expected) tokens)
 
 props :: TestTree
@@ -38,15 +39,15 @@ instance Show (AlexPosn -> Token) where
     show _ = "Token"
 
 -- | Tests that the lexer can lex space-separated strings of tokens.
-correct :: [(String, AlexPosn -> Token)] -> Gen Prop
+correct :: [(String, Token)] -> Gen Prop
 correct tkns = propertyIO $
-  let tokens' _ []           = [EOF]
-      tokens' c ((s', t):xs) = t (AlexPn c 1 (c + 1)) : tokens' (c + length s' + 1) xs
+  let tokens' _ []           = [eof]
+      tokens' c ((s', t):xs) = Lexeme (AlexPn c 1 (c + 1)) t : tokens' (c + length s' + 1) xs
       s = unwords $ map fst tkns
       msg = "text=" ++ s
   in assertEqual msg (tokens' 0 tkns) (testLex s)
 
-tokens :: [(String, AlexPosn -> Token)]
+tokens :: [(String, Token)]
 tokens = [
     ("{"  , LCURLY       )
   , ("}"  , RCURLY       )
@@ -75,11 +76,11 @@ tokens = [
   , ("^"  , FILL         )
   , ("#"  , TAKE         )
   , ("~"  , MATCH        )
-  , ("`hello",    flip SYM "hello")
-  , ("\"Hello\"", flip STRING "Hello")
+  , ("`hello",    SYM "hello")
+  , ("\"Hello\"", STRING "Hello")
   ]
 
-testLex :: String -> [Token]
+testLex :: String -> [Lexeme]
 testLex s = case scanner s of
           Left msg -> error msg
           Right a  -> a
