@@ -4,6 +4,14 @@ ghc: 7.8.3
 cache:
   directories:
   - ~/.cabal
+  
+notifications:
+  webhooks:
+    urls:
+      - https://webhooks.gitter.im/e/ed158bf029566cee4c0d
+    on_success: always  # options: [always|never|change] default: always
+    on_failure: always  # options: [always|never|change] default: always
+    on_start: false     # default: false
 
 before_install:
   - sudo apt-get update -qq
