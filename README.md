@@ -4,6 +4,7 @@ kdb-haskell
 [![Build Status](https://travis-ci.org/jkozlowski/kdb-haskell.svg?branch=master)](https://travis-ci.org/jkozlowski/kdb-haskell)
 [![Coverage Status](https://coveralls.io/repos/jkozlowski/kdb-haskell/badge.png)](https://coveralls.io/r/jkozlowski/kdb-haskell)
 [![Gitter chat](https://badges.gitter.im/jkozlowski/kdb-haskell.png)](https://gitter.im/jkozlowski/kdb-haskell)
+[![Huboard](http://img.shields.io/badge/Hu-Board-7965cc.svg)](https://huboard.com/jkozlowski/kdb-haskell)
 
 kdb+ client library in Haskell.
 
