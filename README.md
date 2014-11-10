@@ -5,7 +5,7 @@ kdb-haskell
 [![Coverage Status](https://coveralls.io/repos/jkozlowski/kdb-haskell/badge.png)](https://coveralls.io/r/jkozlowski/kdb-haskell)
 [![Gitter chat](https://badges.gitter.im/jkozlowski/kdb-haskell.png)](https://gitter.im/jkozlowski/kdb-haskell)
 
-kdb+ driver in Haskell.
+kdb+ client library in Haskell.
 
 Status
 ------
