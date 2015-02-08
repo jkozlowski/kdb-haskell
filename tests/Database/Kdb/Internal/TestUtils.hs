@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Database.Kdb.Internal.TestUtils
@@ -20,20 +21,63 @@ module Database.Kdb.Internal.TestUtils (
 
     -- * @C.ByteString@ utils
   , bprint
+
+    -- $network
+    -- Network utils
+  , findFreePort
+
+    -- $kdbutils
+    -- * Kdb utils
+  , kdbConnection, startKdb, user, pass
+
+    -- $general
+    -- * General utils
+  , assertException
   ) where
 
-import           Control.Applicative         (pure, (<$>), (<*>))
-import qualified Data.ByteString.Char8       as C
-import           Data.Fixed                  (Pico)
-import           Data.Monoid                 ((<>))
+import           Control.Applicative                     (pure, (<$>), (<*>))
+import           Control.Arrow                           ((***))
+import           Control.Lens
+import           Control.Monad                           (guard, void)
+import           Control.Monad.Catch                     (Exception,
+                                                          Handler (..),
+                                                          MonadCatch)
+import qualified Control.Monad.Catch                     as E
+import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Class               (lift)
+import           Control.Monad.Trans.Resource
+import           Control.Retry                           (constantDelay,
+                                                          limitRetries,
+                                                          recovering)
+import           Data.ByteString                         (ByteString)
+import qualified Data.ByteString.Char8                   as C
+import           Data.Default.Class
+import           Data.Fixed                              (Pico)
+import           Data.Monoid                             ((<>))
 import           Data.Ratio
-import qualified Data.Time                   as Time
-import           Database.Kdb.Internal.Types
-import           Test.QuickCheck             (Gen, arbitrary, choose, listOf1,
-                                              suchThat, vectorOf)
-import           Test.QuickCheck.Gen         (sample')
-import           Test.Tasty.HUnit            (Assertion, (@?=))
-import           Text.Printf                 (printf)
+import           Data.String                             (fromString)
+import qualified Data.Time                               as Time
+import qualified Database.Kdb.Internal.Client            as Client
+import           Database.Kdb.Internal.Types.ClientTypes (Connection, password,
+                                                          port, username)
+import           Database.Kdb.Internal.Types.KdbTypes
+import           Filesystem.Path.CurrentOS               (encodeString, (</>))
+import           Network.Socket                          hiding (recv)
+import           System.Directory                        (getCurrentDirectory,
+                                                          getPermissions,
+                                                          setOwnerExecutable,
+                                                          setPermissions)
+import           System.Info                             (os)
+import           System.IO
+import           System.IO.Error                         (catchIOError)
+import qualified System.Process                          as Process
+import           Test.QuickCheck                         (Gen, arbitrary,
+                                                          choose, listOf1,
+                                                          suchThat, vectorOf)
+import           Test.QuickCheck.Gen                     (sample')
+import           Test.Tasty.HUnit                        (Assertion,
+                                                          assertFailure, (@?=))
+import           Text.Printf                             (printf)
 
 insert :: Value
 insert = charV "insert"
@@ -196,3 +240,93 @@ dayInScale p =
 -- function to convert list of bytestring into hex digits - useful for debugging kx IPC bytes
 bprint :: C.ByteString -> String
 bprint x = ("0x" ++ ) $ foldl (++) "" $ printf "%02x" <$> C.unpack x
+
+-----------------------------------------------------------------
+-- $network
+-- Network utils
+
+-- | Finds a free port that can be bound to.
+findFreePort :: IO PortNumber
+findFreePort = go 1025 1100
+  where go n stop | n <= stop = catchIOError (do
+          sock <- socket AF_INET Stream defaultProtocol
+          bindSocket sock (SockAddrInet n iNADDR_ANY)
+          close sock
+          return n)
+          (\e -> print (show e) >> go (n+1) stop)
+        go _ _              = ioError $ userError "No free ports"
+
+--------------------------------------
+-- $kdbutils
+-- Kdb utils
+
+user :: ByteString
+user = "user"
+
+pass :: ByteString
+pass = "pwd"
+
+-- | Starts a kdb instance on a free port with default @user@ and @pass@.
+startKdb :: ResourceT IO PortNumber
+startKdb = do
+  freePort <- lift . liftIO $ findFreePort
+  -- Find kdb binary and make it executable
+  (qhome, kdb) <- lift . liftIO $ kdbExecutable
+  lift . liftIO $ (do
+    p <- getPermissions kdb
+    setPermissions kdb (setOwnerExecutable True p))
+  (_, h) <- allocate (openFile "/dev/null" AppendMode) hClose
+  let cmd = (Process.proc kdb [ "-p", show freePort
+                              , "-u", encodeString (fromString qhome </> fromString "users.txt")
+                              ]) {
+           Process.std_out = Process.UseHandle h
+         , Process.std_err = Process.UseHandle h
+         , Process.close_fds = True
+         , Process.env     = Just [("QHOME", qhome)]
+         }
+      terminateProcess (_, _, _, ph) = void $ Process.terminateProcess ph >> Process.waitForProcess ph
+  void $ allocate (Process.createProcess cmd) terminateProcess
+  return $! freePort
+
+-- | Gets the absolute paths to the QHOME and kdb executable.
+kdbExecutable :: IO (String, String)
+kdbExecutable = do
+    basepath <- getCurrentDirectory
+    let base = fromString basepath </> "tools" </> "kdb"
+        kdb  = base </> kdbPath
+    (return . (encodeString *** encodeString)) (base, kdb)
+  where kdbPath = case os of
+                 "darwin" -> "m32" </> "q"
+                 "linux"  -> "l32" </> "q"
+                 _        -> error "Unknown OS"
+
+-- | Retries connecting to kdb until it succeeds,
+-- sleeping for short periods of time in between retries.
+--
+-- The connection will be retried up to 100 times with a constant
+-- 50ms delay or until a non @IOError@ is thrown.
+kdbConnection :: ByteString -> ByteString -> PortNumber -> ResourceT IO Connection
+kdbConnection userVal passVal freePort = do
+  let -- 50 millis, max 100 times
+      policy = constantDelay 50000 <> limitRetries 100
+      props = def & port     .~ freePort
+                  & username .~ Just userVal
+                  & password .~ Just passVal
+      -- Only handle IOExceptions until the process comes up
+      -- and creates a socket: pass any other exceptions through
+      h _ = Handler $ \ (_ :: IOError) -> return True
+
+  -- Try connecting
+  (_, con) <- allocate (recovering policy [h] $ Client.connect props) Client.close
+  return $! con
+
+--------------------------------------
+-- *general
+-- General utils
+
+assertException :: (Exception e, Eq e, MonadIO m, MonadCatch m) => (e -> Bool) -> m a -> m ()
+assertException ex action =
+    E.catchIf ex (do
+        _ <- action
+        liftIO $ assertFailure $ "Unexpected exception")
+        (const $ return ())

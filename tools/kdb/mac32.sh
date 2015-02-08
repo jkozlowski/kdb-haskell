@@ -6,4 +6,4 @@ export QHOME="$DIR"
 
 cd "$DIR/m32"
 
-./q -p 7777
+./q -p 5010 -u users.txt

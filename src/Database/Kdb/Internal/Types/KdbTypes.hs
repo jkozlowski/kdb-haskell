@@ -1,20 +1,19 @@
 {-# LANGUAGE BangPatterns       #-}
 {-# LANGUAGE DataKinds          #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric      #-}
 {-# LANGUAGE GADTs              #-}
 {-# LANGUAGE TypeFamilies       #-}
 -----------------------------------------------------------------------------
 -- |
--- Module      :  Database.Kdb.Internal.Types
+-- Module      :  Database.Kdb.Internal.KdbTypes
 -- Copyright   :  (c) 2014, Jakub Dominik Kozlowski
 -- License     :  MIT
 --
 -- Maintainer  :  mail@jakub-kozlowski.com
 --
--- Types used to work with Kdb+.
+-- Haskell types that represent Kdb+ types.
 -----------------------------------------------------------------------------
-module Database.Kdb.Internal.Types (
+module Database.Kdb.Internal.Types.KdbTypes (
     -- * Data types
     -- $types
     Atom(..)
@@ -124,29 +123,29 @@ module Database.Kdb.Internal.Types (
   , nullDateTime
   ) where
 
-import           Control.Monad                       (foldM_)
-import           Data.ByteString                     (ByteString)
-import qualified Data.ByteString                     as B
-import           Data.Int                            (Int16, Int32, Int64, Int8)
-import           Data.List                           (foldl')
-import qualified Data.Time                           as Time
-import           Data.Typeable                       (Typeable)
-import qualified Data.Vector                         as V
-import qualified Data.Vector.Storable                as SV
+import           Control.Monad                             (foldM_)
+import           Data.ByteString                           (ByteString)
+import qualified Data.ByteString                           as B
+import           Data.Int                                  (Int16, Int32, Int64,
+                                                            Int8)
+import           Data.List                                 (foldl')
+import qualified Data.Time                                 as Time
+import           Data.Typeable                             (Typeable)
+import qualified Data.Vector                               as V
+import qualified Data.Vector.Storable                      as SV
 import           Data.Word
-import qualified Database.Kdb.Internal.DateTimeTypes as DateTime
-import           Foreign                             (Storable, sizeOf)
-import           Foreign.C.String                    (castCharToCChar)
-import           Foreign.C.Types                     (CChar)
+import qualified Database.Kdb.Internal.Types.DateTimeTypes as DateTime
+import           Foreign                                   (Storable, sizeOf)
+import           Foreign.C.String                          (castCharToCChar)
+import           Foreign.C.Types                           (CChar)
 
 
 -- DeepSeq and Generics
-import           Control.DeepSeq                     (NFData (..))
-import           GHC.Generics
+import           Control.DeepSeq                           (NFData (..))
 
 -- Unsafe functions
-import qualified Data.Vector.Storable.Mutable        as MSV
-import           System.IO.Unsafe                    (unsafePerformIO)
+import qualified Data.Vector.Storable.Mutable              as MSV
+import           System.IO.Unsafe                          (unsafePerformIO)
 
 -- $types
 --
@@ -188,7 +187,7 @@ data Atom
     | KSecond    {-# UNPACK #-} !Int32
       -- | Time atom
     | KTime      {-# UNPACK #-} !Int32
-  deriving (Eq, Show, Typeable, Generic)
+  deriving (Eq, Show, Typeable)
 
 instance NFData Atom where
     rnf (KBool      x) = rnf x
@@ -245,7 +244,7 @@ data Vector
     | KSecondV    {-# UNPACK #-} !(SV.Vector Int32)
       -- | Time vector
     | KTimeV      {-# UNPACK #-} !(SV.Vector Int32)
-  deriving (Eq, Show, Typeable, Generic)
+  deriving (Eq, Show, Typeable)
 
 instance NFData Vector where
     rnf (KBoolV        x) = rnf x
@@ -278,7 +277,7 @@ data Value
     | KDict  {-# UNPACK #-} !Vector {-# UNPACK #-} !Vector
       -- | Q table: Int stores total bytes needed to encode table in `Vector`
     | KTable {-# UNPACK #-} !Int {-# UNPACK #-} !(V.Vector Value)
-  deriving (Eq, Show, Typeable, Generic)
+  deriving (Eq, Show, Typeable)
 
 instance NFData Value where
     rnf (A        x)  = rnf x

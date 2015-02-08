@@ -11,31 +11,37 @@
 -----------------------------------------------------------------------------
 module Database.Kdb.Internal.IPCTest (tests) where
 
-import           Control.Applicative         ((<$>), (<*))
-import           Control.DeepSeq             (deepseq)
-import qualified Data.Attoparsec             as A
-import qualified Data.ByteString             as B
-import           Data.ByteString.Base16      (decode, encode)
-import           Data.ByteString.Char8       (ByteString, unpack)
-import           Data.Time                   (Day, NominalDiffTime,
-                                              TimeOfDay (..), UTCTime (..),
-                                              diffUTCTime, fromGregorian,
-                                              timeOfDayToTime, timeOfDayToTime)
-import qualified Database.Kdb.Internal.IPC   as IPC
-import           Database.Kdb.Internal.Types (Value, bool, boolV, byte, byteV,
-                                              char, charV, date, dateTime,
-                                              dateTimeV, dateV, dict, float,
-                                              floatV, int, intV, list, long,
-                                              longV, longVV, minute, minuteV,
-                                              month, monthV, real, realV, s,
-                                              second, secondV, short, shortV,
-                                              symV, symVV, table, time, timeV,
-                                              timespan, timespanV, timestamp,
-                                              timestampV)
-import qualified System.Endian               as End
+import           Control.Applicative                  ((<$>), (<*))
+import           Control.DeepSeq                      (deepseq)
+import qualified Data.Attoparsec                      as A
+import qualified Data.ByteString                      as B
+import           Data.ByteString.Base16               (decode, encode)
+import           Data.ByteString.Char8                (ByteString, unpack)
+import           Data.Time                            (Day, NominalDiffTime,
+                                                       TimeOfDay (..),
+                                                       UTCTime (..),
+                                                       diffUTCTime,
+                                                       fromGregorian,
+                                                       timeOfDayToTime,
+                                                       timeOfDayToTime)
+import qualified Database.Kdb.Internal.IPC            as IPC
+import           Database.Kdb.Internal.Types.KdbTypes (Value, bool, boolV, byte,
+                                                       byteV, char, charV, date,
+                                                       dateTime, dateTimeV,
+                                                       dateV, dict, float,
+                                                       floatV, int, intV, list,
+                                                       long, longV, longVV,
+                                                       minute, minuteV, month,
+                                                       monthV, real, realV, s,
+                                                       second, secondV, short,
+                                                       shortV, symV, symVV,
+                                                       table, time, timeV,
+                                                       timespan, timespanV,
+                                                       timestamp, timestampV)
+import qualified System.Endian                        as End
 import           Test.Tasty
-import           Test.Tasty.HUnit            (assertEqual, assertFailure,
-                                              testCase)
+import           Test.Tasty.HUnit                     (assertEqual,
+                                                       assertFailure, testCase)
 
 tests :: TestTree
 tests = testGroup "Database.Kdb.Internal.IPC" [ qcProps, unitTests ]

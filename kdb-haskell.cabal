@@ -2,6 +2,7 @@ name:               kdb-haskell
 version:            0.1.0
 synopsis:           Haskell bindings for KDB+.
 description:        This package implements binding for KDB+ database (kx.com) in Haskell.
+                    Compression is currently not supported.
 category:           Finance, Database
 homepage:           https://github.com/jkozlowski/kdb-haskell
 bug-reports:        https://github.com/jkozlowski/kdb-haskell/issues
@@ -30,20 +31,25 @@ flag documentation
 
 library
   exposed-modules:    
-  other-modules:      Database.Kdb.Internal.Types
+  other-modules:      Database.Kdb.Internal.Types.KdbTypes
+                    , Database.Kdb.Internal.Types.DateTimeTypes
+                    , Database.Kdb.Internal.Types.ClientTypes
                     , Database.Kdb.Internal.IPC
-                    , Database.Kdb.Internal.DateTimeTypes
+                    , Database.Kdb.Internal.Client
   default-language:   Haskell2010
-  build-depends:      base >= 4 && < 5
+  build-depends:      base >= 4 && < 5, transformers
                     , deepseq
+                    , network, io-streams, exceptions
                     , cpu
                     , time
                     , attoparsec
                     , bytestring
+                    , data-default-class
+                    , lens
                       -- see if possible to get rid of: necessary for the
                       -- conversions between Word32/Word64 and Float/Double.
-                    , array
-                    , vector
+                    , array, vector
+                      -- Necessary to provide instances for testing.
                     , QuickCheck
   hs-source-dirs:     src
   ghc-options:       -Wall
@@ -55,28 +61,22 @@ test-suite kdb-haskell-tests
                     , tests
   main-is:            Test.hs
   type:               exitcode-stdio-1.0
-  build-depends:      base
+  build-depends:      base >= 4 && < 5, transformers
                     , deepseq
-                    , deepseq-generics
+                    , network, io-streams, exceptions
                     , cpu
-                    , bytestring
-                    , array
-                    , base16-bytestring
-                    , containers
-                    , vector
-                    , attoparsec
-                    , text
                     , time
-                    , timezone-series  >= 0.1.3
-                    , timezone-olson
-                    , tzdata == 0.1.20140612.0
-                    , binary
-                    , mtl
+                    , attoparsec
+                    , bytestring
+                    , data-default-class
                     , lens
+                      -- see if possible to get rid of: necessary for the
+                      -- conversions between Word32/Word64 and Float/Double.
+                    , array, vector
                     -- Testing
+                    , base16-bytestring
                     , tasty
                     , tasty-quickcheck
-                    --, tasty-smallcheck
                     , tasty-hunit
                     , QuickCheck
                     , quickcheck-io
@@ -88,41 +88,36 @@ test-suite kdb-haskell-tests
                     , transformers
                     , retry
                     , Cabal
-                    -- This needs to be disabled for now, until I figure out
-                    -- why this fails to build.
-                    --, hlint
   ghc-options:       -Wall
                      -O0
                      -funbox-strict-fields
 
-benchmark kdb-haskell-benchmark
-  type:               exitcode-stdio-1.0
-  hs-source-dirs:     src
-                    , tests
-                    , benchmarks
-  main-is:            Benchmark.hs
-  build-depends:      base
-                    , deepseq
-                    , deepseq-generics
-                    , cpu
-                    , bytestring
-                    , array
-                    , base16-bytestring
-                    , containers
-                    , vector
-                    , attoparsec
-                    , text
-                    , time
-                    , timezone-series >= 0.1.3
-                    , binary
-                    , mtl
-                    , lens
-                    -- Benchmark deps
-                    , network
-                    , time
-                    , criterion
-                    , QuickCheck
-  ghc-options:       -Wall
-                     -O2
-                     -funbox-strict-fields
-                     -rtsopts
+--benchmark kdb-haskell-benchmark
+--  type:               exitcode-stdio-1.0
+--  hs-source-dirs:     src
+--                    , tests
+--                    , benchmarks
+--  main-is:            Benchmark.hs
+--  build-depends:      base
+--                    , deepseq
+--                    , deepseq-generics
+--                    , cpu
+--                    , bytestring
+--                    , array
+--                    , base16-bytestring
+--                    , containers
+--                    , vector
+--                    , attoparsec
+--                    , text
+--                    , time
+--                    , binary
+--                    , mtl
+--                    , lens
+--                    -- Benchmark deps
+--                    , network
+--                    , criterion
+--                    , QuickCheck
+--  ghc-options:       -Wall
+--                     -O2
+--                     -funbox-strict-fields
+--                     -rtsopts

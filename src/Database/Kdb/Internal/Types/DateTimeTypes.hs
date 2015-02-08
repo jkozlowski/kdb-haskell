@@ -10,13 +10,13 @@
 -- Types and utility functions to convert to/from kdb date/time values.
 --
 -- There is sufficient difficulty in dealing with Kdb date/time values that this
--- module was split out from @Database.Kdb.Internal.Types@. This difficulty
+-- module was split out from @Database.Kdb.Internal.KdbTypes@. This difficulty
 -- means that some conversions might be inefficient and could be improved.
 --
 -- In general, the time library stores dates and times to quick high precision
 -- (picoseconds), therefore most conversions loose information.
 -----------------------------------------------------------------------------
-module Database.Kdb.Internal.DateTimeTypes (
+module Database.Kdb.Internal.Types.DateTimeTypes (
 
     -- * Kdb epoch.
     -- $epoch

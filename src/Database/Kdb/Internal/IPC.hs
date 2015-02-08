@@ -1,7 +1,9 @@
 {-# LANGUAGE BangPatterns          #-}
+{-# LANGUAGE CPP                   #-}
 {-# LANGUAGE ExplicitForAll        #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Database.Kdb.Internal.IPC
@@ -20,44 +22,53 @@
 -- like binary.
 -----------------------------------------------------------------------------
 module Database.Kdb.Internal.IPC (
+
+    Version(..)
+
     -- * Serializer
     -- $serializer
-    asyncIPC
+  , asyncIPC
   , syncIPC
+  , loginBytes
 
     -- * Parser
     -- $parser
   , ipcParser
+  , capabilityParser
 
     -- * Utils
     -- $utils
   , systemEndianess
   ) where
 
-import           Control.Applicative         (pure, (*>), (<$>), (<*), (<*>))
-import           Control.Monad               (replicateM, void)
-import           Control.Monad.ST            (ST, runST)
-import           Data.Array.ST               (MArray, STUArray, newArray,
-                                              readArray)
-import           Data.Array.Unsafe           (castSTUArray)
-import qualified Data.Attoparsec.ByteString  as A
-import           Data.Bits                   (FiniteBits (..), finiteBitSize,
-                                              shiftL, shiftR, (.|.))
-import qualified Data.ByteString             as B
-import           Data.Int                    (Int16, Int32, Int64)
-import qualified Data.Vector                 as V
-import qualified Data.Vector.Storable        as SV
-import           Data.Word                   (Word16, Word32, Word64, Word8)
-import           Database.Kdb.Internal.Types (Atom (..), Value (..),
-                                              Vector (..))
-import qualified Database.Kdb.Internal.Types as KT
-import           Foreign                     (Ptr, plusPtr, poke)
-import           Foreign.C.Types             (CChar (..))
-import qualified System.Endian               as End
+import           Control.Applicative                  (pure, (*>), (<$>), (<*),
+                                                       (<*>))
+import           Control.Monad                        (replicateM, void)
+import           Control.Monad.ST                     (ST, runST)
+import           Data.Array.ST                        (MArray, STUArray,
+                                                       newArray, readArray)
+import           Data.Array.Unsafe                    (castSTUArray)
+import qualified Data.Attoparsec.ByteString           as A
+import           Data.Bits                            (Bits (..), bitSize,
+                                                       shiftL, shiftR, (.|.))
+import qualified Data.ByteString                      as B
+import           Data.Int                             (Int16, Int32, Int64)
+import           Data.Maybe
+import           Data.Monoid
+import qualified Data.Vector                          as V
+import qualified Data.Vector.Storable                 as SV
+import           Data.Word                            (Word16, Word32, Word64,
+                                                       Word8)
+import           Database.Kdb.Internal.Types.KdbTypes (Atom (..), Value (..),
+                                                       Vector (..))
+import qualified Database.Kdb.Internal.Types.KdbTypes as KT
+import           Foreign                              (Ptr, plusPtr, poke)
+import           Foreign.C.Types                      (CChar (..))
+import qualified System.Endian                        as End
 
 -- Unsafe stuff
-import           Data.ByteString.Internal    (ByteString, unsafeCreate)
-import           Unsafe.Coerce               (unsafeCoerce)
+import           Data.ByteString.Internal             (ByteString, unsafeCreate)
+import           Unsafe.Coerce                        (unsafeCoerce)
 
 -- Helper functions that write particular values to a pointer.
 
@@ -177,6 +188,7 @@ msgType Response = 2
 {-# INLINE msgType #-}
 
 -- | Version of the Kdb+ IPC protocol.
+-- TODO: Disable some of the features, as compression is not supported.
 data Version
     = -- | no compression, no timestamp, no timespan, no uuid
       V_25
@@ -186,21 +198,36 @@ data Version
 
       -- | compression, timestamp, timespan, uuid
     | V_30
+    deriving (Show, Eq)
 
--- | Gets the capability byte for particular `Version`.
+-- | Gets the formatted login message for Kdb+.
+--
+-- username:password\versionbyte\0
+loginBytes :: Maybe B.ByteString -> Maybe B.ByteString -> Version -> B.ByteString
+loginBytes username pass ver = fromMaybe "" username            <>
+                               ":"                              <>
+                               fromMaybe "" pass                <>
+                               (B.singleton . capability $ ver) <>
+                                B.singleton 0
+{-# INLINE loginBytes #-}
+
+-- | Gets the capability byte for particular @Version@.
 capability :: Version -> Word8
 capability V_25 = 0
 capability V_26 = 1
 capability V_28 = 2
 capability V_30 = 3
+{-# INLINE capability #-}
 
--- | Checks if the capability is valid.
-uncapability :: Word8 -> Maybe Version
-uncapability 0 = Just V_25
-uncapability 1 = Just V_26
-uncapability 2 = Just V_28
-uncapability 3 = Just V_30
-uncapability _ = Nothing
+capabilityParser :: B.ByteString -> Maybe Version
+capabilityParser bs | B.length bs /= 1 = Nothing
+capabilityParser bs = case B.head bs of
+  0 -> Just V_25
+  1 -> Just V_26
+  2 -> Just V_28
+  3 -> Just V_30
+  _ -> Nothing
+{-# INLINE capabilityParser #-}
 
 -- | Function to build Q IPC representation (except message header)
 qBytes :: Value -> Ptr Word8 -> IO (Ptr Word8)
@@ -454,34 +481,34 @@ double64 !e = wordToDouble <$> case e of
                                 End.BigEndian    -> anyWord64be
 {-# INLINE double64 #-}
 
-byteSize :: (FiniteBits a) => a -> Int
-byteSize = (`div` 8) . finiteBitSize
+byteSize :: (Bits a) => a -> Int
+byteSize = (`div` 8) . bitSize
 {-# INLINEABLE byteSize #-}
-{-# SPECIALIZE byteSize :: (FiniteBits Int16) => Int16 -> Int #-}
-{-# SPECIALIZE byteSize :: (FiniteBits Int32) => Int32 -> Int #-}
-{-# SPECIALIZE byteSize :: (FiniteBits Int64) => Int64 -> Int #-}
-{-# SPECIALIZE byteSize :: (FiniteBits Word32) => Word32 -> Int #-}
-{-# SPECIALIZE byteSize :: (FiniteBits Word64) => Word64 -> Int #-}
+{-# SPECIALIZE byteSize :: (Bits Int16) => Int16 -> Int #-}
+{-# SPECIALIZE byteSize :: (Bits Int32) => Int32 -> Int #-}
+{-# SPECIALIZE byteSize :: (Bits Int64) => Int64 -> Int #-}
+{-# SPECIALIZE byteSize :: (Bits Word32) => Word32 -> Int #-}
+{-# SPECIALIZE byteSize :: (Bits Word64) => Word64 -> Int #-}
 
-pack :: (FiniteBits a, Num a) => B.ByteString -> a
+pack :: (Bits a, Num a) => B.ByteString -> a
 pack = B.foldl' (\n h -> (n `shiftL` 8) .|. fromIntegral h) 0
 {-# INLINEABLE pack #-}
-{-# SPECIALIZE pack :: (FiniteBits Int16, Num Int16) => B.ByteString -> Int16 #-}
-{-# SPECIALIZE pack :: (FiniteBits Int32, Num Int32) => B.ByteString -> Int32 #-}
-{-# SPECIALIZE pack :: (FiniteBits Int64, Num Int64) => B.ByteString -> Int64 #-}
-{-# SPECIALIZE pack :: (FiniteBits Word32, Num Word32) => B.ByteString -> Word32 #-}
-{-# SPECIALIZE pack :: (FiniteBits Word64, Num Word64) => B.ByteString -> Word64 #-}
+{-# SPECIALIZE pack :: (Bits Int16, Num Int16) => B.ByteString -> Int16 #-}
+{-# SPECIALIZE pack :: (Bits Int32, Num Int32) => B.ByteString -> Int32 #-}
+{-# SPECIALIZE pack :: (Bits Int64, Num Int64) => B.ByteString -> Int64 #-}
+{-# SPECIALIZE pack :: (Bits Word32, Num Word32) => B.ByteString -> Word32 #-}
+{-# SPECIALIZE pack :: (Bits Word64, Num Word64) => B.ByteString -> Word64 #-}
 
-anyWordN :: (FiniteBits a) => (B.ByteString -> a) -> A.Parser a
+anyWordN :: (Bits a) => (B.ByteString -> a) -> A.Parser a
 anyWordN = anyWordN' undefined
-  where anyWordN' :: (FiniteBits a) => a -> (B.ByteString -> a) -> A.Parser a
+  where anyWordN' :: (Bits a) => a -> (B.ByteString -> a) -> A.Parser a
         anyWordN' d = flip fmap $ A.take $ byteSize d
 {-# INLINEABLE anyWordN #-}
-{-# SPECIALIZE anyWordN :: (FiniteBits Int16) => (B.ByteString -> Int16) -> A.Parser Int16 #-}
-{-# SPECIALIZE anyWordN :: (FiniteBits Int32) => (B.ByteString -> Int32) -> A.Parser Int32 #-}
-{-# SPECIALIZE anyWordN :: (FiniteBits Int64) => (B.ByteString -> Int64) -> A.Parser Int64 #-}
-{-# SPECIALIZE anyWordN :: (FiniteBits Word32) => (B.ByteString -> Word32) -> A.Parser Word32 #-}
-{-# SPECIALIZE anyWordN :: (FiniteBits Word64) => (B.ByteString -> Word64) -> A.Parser Word64 #-}
+{-# SPECIALIZE anyWordN :: (Bits Int16) => (B.ByteString -> Int16) -> A.Parser Int16 #-}
+{-# SPECIALIZE anyWordN :: (Bits Int32) => (B.ByteString -> Int32) -> A.Parser Int32 #-}
+{-# SPECIALIZE anyWordN :: (Bits Int64) => (B.ByteString -> Int64) -> A.Parser Int64 #-}
+{-# SPECIALIZE anyWordN :: (Bits Word32) => (B.ByteString -> Word32) -> A.Parser Word32 #-}
+{-# SPECIALIZE anyWordN :: (Bits Word64) => (B.ByteString -> Word64) -> A.Parser Word64 #-}
 
 -- | Match any 32-bit big-endian word.
 anyWord32be :: A.Parser Word32
