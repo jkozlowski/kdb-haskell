@@ -28,7 +28,7 @@ module Database.Kdb.Internal.IPC (
     -- * Serializer
     -- $serializer
   , asyncIPC
-  , syncIPC
+  , syncIPCB
   , loginBytes
 
     -- * Parser
@@ -41,263 +41,169 @@ module Database.Kdb.Internal.IPC (
   , systemEndianess
   ) where
 
+import           Blaze.ByteString.Builder             (Builder)
+import qualified Blaze.ByteString.Builder             as Blaze
 import           Control.Applicative                  (pure, (*>), (<$>), (<*),
                                                        (<*>))
-import           Control.Monad                        (replicateM, void)
+import           Control.Monad                        (replicateM)
 import           Control.Monad.ST                     (ST, runST)
 import           Data.Array.ST                        (MArray, STUArray,
                                                        newArray, readArray)
 import           Data.Array.Unsafe                    (castSTUArray)
 import qualified Data.Attoparsec.ByteString           as A
 import           Data.Bits                            (Bits (..), bitSize,
-                                                       shiftL, shiftR, (.|.))
+                                                       shiftL, (.|.))
 import qualified Data.ByteString                      as B
 import           Data.Int                             (Int16, Int32, Int64)
 import           Data.Maybe
 import           Data.Monoid
 import qualified Data.Vector                          as V
+import           Data.Vector.Storable                 ()
 import qualified Data.Vector.Storable                 as SV
 import           Data.Word                            (Word16, Word32, Word64,
                                                        Word8)
 import           Database.Kdb.Internal.Types.KdbTypes (Atom (..), Value (..),
                                                        Vector (..))
 import qualified Database.Kdb.Internal.Types.KdbTypes as KT
-import           Foreign                              (Ptr, plusPtr, poke)
 import           Foreign.C.Types                      (CChar (..))
 import qualified System.Endian                        as End
 
 -- Unsafe stuff
-import           Data.ByteString.Internal             (ByteString, unsafeCreate)
 import           Unsafe.Coerce                        (unsafeCoerce)
 
--- Helper functions that write particular values to a pointer.
+-----------------------------------------------------------------------------
+-- $serializer
+-- Serialiser using the Builder
 
--- | Write a `Word16` to a pointer in little endian format and advance pointer.
-putWord8 :: Word8 -> Ptr Word8 -> IO (Ptr Word8)
-putWord8 w p = poke p w >> return (p `plusPtr` 1)
-{-# INLINE putWord8 #-}
+asyncIPC :: Value -> Builder
+asyncIPC = qIPC Async
+{-# NOINLINE asyncIPC #-}
 
--- | Write a Word16 in little endian format
-putWord16 :: Word16 -> Ptr Word8 -> IO (Ptr Word8)
-putWord16 w p = do
-    poke p               (fromIntegral w            :: Word8)
-    poke (p `plusPtr` 1) (fromIntegral (shiftR w 8) :: Word8)
-    return (p `plusPtr` 2)
-{-# INLINE putWord16 #-}
-
--- | Write a Word32 in little endian format
-putWord32 :: Word32 -> Ptr Word8 -> IO (Ptr Word8)
-putWord32 w p = do
-  poke p (fromIntegral w                            :: Word8)
-  poke (p `plusPtr` 1) (fromIntegral (shiftR w  8)  :: Word8)
-  poke (p `plusPtr` 2) (fromIntegral (shiftR w  16) :: Word8)
-  poke (p `plusPtr` 3) (fromIntegral (shiftR w  24) :: Word8)
-  return (p `plusPtr` 4)
-{-# INLINE putWord32 #-}
-
--- | Write a Word64 in little endian format
-putWord64 :: Word64 -> Ptr Word8 -> IO (Ptr Word8)
-putWord64 w p = do
-  poke p               (fromIntegral w             :: Word8)
-  poke (p `plusPtr` 1) (fromIntegral (shiftR w  8) :: Word8)
-  poke (p `plusPtr` 2) (fromIntegral (shiftR w 16) :: Word8)
-  poke (p `plusPtr` 3) (fromIntegral (shiftR w 24) :: Word8)
-  poke (p `plusPtr` 4) (fromIntegral (shiftR w 32) :: Word8)
-  poke (p `plusPtr` 5) (fromIntegral (shiftR w 40) :: Word8)
-  poke (p `plusPtr` 6) (fromIntegral (shiftR w 48) :: Word8)
-  poke (p `plusPtr` 7) (fromIntegral (shiftR w 56) :: Word8)
-  return (p `plusPtr` 8)
-{-# INLINE putWord64 #-}
-
--- | Function to generate putWord<N>V functions, N = 8,16,32,64
-genFnPutWordNV :: (SV.Storable a) => (a -> Ptr Word8 -> IO (Ptr Word8)) -> SV.Vector a ->  Ptr Word8 -> IO (Ptr Word8)
-genFnPutWordNV f w p = SV.foldM' (flip f) p w
-{-# INLINEABLE genFnPutWordNV #-}
-{-# SPECIALIZE genFnPutWordNV :: (SV.Storable Word8) => (Word8 -> Ptr Word8 -> IO (Ptr Word8)) -> SV.Vector Word8 -> Ptr Word8 -> IO (Ptr Word8) #-}
-{-# SPECIALIZE genFnPutWordNV :: (SV.Storable Word16) => (Word16 -> Ptr Word8 -> IO (Ptr Word8)) -> SV.Vector Word16 -> Ptr Word8 -> IO (Ptr Word8) #-}
-{-# SPECIALIZE genFnPutWordNV :: (SV.Storable Word32) => (Word32 -> Ptr Word8 -> IO (Ptr Word8)) -> SV.Vector Word32 -> Ptr Word8 -> IO (Ptr Word8) #-}
-{-# SPECIALIZE genFnPutWordNV :: (SV.Storable Word64) => (Word64 -> Ptr Word8 -> IO (Ptr Word8)) -> SV.Vector Word64 -> Ptr Word8 -> IO (Ptr Word8) #-}
-
-putWord8V :: SV.Vector Word8 -> Ptr Word8 -> IO (Ptr Word8)
-putWord8V = genFnPutWordNV putWord8
-{-# INLINE putWord8V #-}
-
-putWord16V :: SV.Vector Word16 -> Ptr Word8 -> IO (Ptr Word8)
-putWord16V = genFnPutWordNV putWord16
-{-# INLINE putWord16V #-}
-
-putWord32V :: SV.Vector Word32 -> Ptr Word8 -> IO (Ptr Word8)
-putWord32V = genFnPutWordNV putWord32
-{-# INLINE putWord32V #-}
-
-putWord64V :: SV.Vector Word64 -> Ptr Word8 -> IO (Ptr Word8)
-putWord64V = genFnPutWordNV putWord64
-{-# INLINE putWord64V #-}
-
--- Kdb specific helper functions.
-
--- | Function to write Q type in ByteString.
-putType :: Value -> Ptr Word8 -> IO (Ptr Word8)
-putType x ptr = poke ptr (fromIntegral $ KT.qType x ::Word8) >> return (ptr `plusPtr` 1)
-{-# INLINE putType #-}
-
--- | Function to write Q attribute in ByteString.
-putAttr :: Ptr Word8 -> IO (Ptr Word8)
-putAttr ptr = poke ptr (0 :: Word8) >> return (ptr `plusPtr` 1)
-{-# INLINE putAttr #-}
-
--- write type, attr, length for list elements.
-putListHeader :: Value -> Ptr Word8 -> IO (Ptr Word8)
-putListHeader x ptr = putType x ptr >>= putAttr
-                    >>= \p2 -> putWord32 (unsafeCoerce ((fromIntegral $ KT.numElements x) :: Int32)) p2
-                    >> return (p2 `plusPtr` 4)
-{-# INLINE putListHeader #-}
-
--- Actual IPC code.
-
-bigEndian :: Word8
-bigEndian = 0
-{-# INLINE bigEndian #-}
-
-littleEndian :: Word8
-littleEndian = 1
-{-# INLINE littleEndian #-}
-
--- | Gets the byte to represent the endianess.
-endian :: End.Endianness -> Word8
-endian End.BigEndian    = bigEndian
-endian End.LittleEndian = littleEndian
-{-# INLINE endian #-}
-
--- | Endianess of the system mapped to correct byte in Kdb IPC.
-systemEndianess :: Word8
-systemEndianess = endian End.getSystemEndianness
-{-# INLINE systemEndianess #-}
-
--- | Allowed message types.
-data MessageType
-    = Async
-    | Sync
-    | Response
-
--- | Gets the correct byte for the message type in Kdb IPC.
-msgType :: MessageType -> Word8
-msgType Async    = 0
-msgType Sync     = 1
-msgType Response = 2
-{-# INLINE msgType #-}
-
--- | Version of the Kdb+ IPC protocol.
--- TODO: Disable some of the features, as compression is not supported.
-data Version
-    = -- | no compression, no timestamp, no timespan, no uuid
-      V_25
-
-      -- | compression, timestamp, timespan
-    | V_26 | V_28
-
-      -- | compression, timestamp, timespan, uuid
-    | V_30
-    deriving (Show, Eq)
+syncIPCB :: Value -> Builder
+syncIPCB = qIPC Sync
+{-# NOINLINE syncIPCB #-}
 
 -- | Gets the formatted login message for Kdb+.
 --
 -- username:password\versionbyte\0
-loginBytes :: Maybe B.ByteString -> Maybe B.ByteString -> Version -> B.ByteString
-loginBytes username pass ver = fromMaybe "" username            <>
-                               ":"                              <>
-                               fromMaybe "" pass                <>
-                               (B.singleton . capability $ ver) <>
-                                B.singleton 0
+loginBytes :: Maybe B.ByteString -> Maybe B.ByteString -> Version -> Builder
+loginBytes username pass ver
+  = Blaze.copyByteString (fromMaybe "" username) <>
+    Blaze.copyByteString ":"                     <>
+    Blaze.copyByteString (fromMaybe "" pass)     <>
+    (Blaze.fromWord8 . capability $ ver)         <>
+    Blaze.fromWord8 0
 {-# INLINE loginBytes #-}
 
--- | Gets the capability byte for particular @Version@.
-capability :: Version -> Word8
-capability V_25 = 0
-capability V_26 = 1
-capability V_28 = 2
-capability V_30 = 3
-{-# INLINE capability #-}
-
-capabilityParser :: B.ByteString -> Maybe Version
-capabilityParser bs | B.length bs /= 1 = Nothing
-capabilityParser bs = case B.head bs of
-  0 -> Just V_25
-  1 -> Just V_26
-  2 -> Just V_28
-  3 -> Just V_30
-  _ -> Nothing
-{-# INLINE capabilityParser #-}
-
--- | Function to build Q IPC representation (except message header)
-qBytes :: Value -> Ptr Word8 -> IO (Ptr Word8)
-qBytes v@(A (KBool        !x)) !ptr = putType v ptr >>= putWord8 (unsafeCoerce x)
-qBytes v@(A (KByte        !x)) !ptr = putType v ptr >>= putWord8 (unsafeCoerce x)
-qBytes v@(A (KShort       !x)) !ptr = putType v ptr >>= putWord16 (unsafeCoerce x)
-qBytes v@(A (KInt         !x)) !ptr = putType v ptr >>= putWord32 (unsafeCoerce x)
-qBytes v@(A (KLong        !x)) !ptr = putType v ptr >>= putWord64 (unsafeCoerce x)
-qBytes v@(A (KReal        !x)) !ptr = putType v ptr >>= putWord32 (unsafeCoerce x)
-qBytes v@(A (KFloat       !x)) !ptr = putType v ptr >>= putWord64 (unsafeCoerce x)
-qBytes v@(A (KChar        !x)) !ptr = putType v ptr >>= putWord8 (unsafeCoerce x)
-qBytes v@(A (KSym         !x)) !ptr = putType v ptr >>= putWord8V (unsafeCoerce x)
-qBytes v@(A (KTimestamp   !x)) !ptr = putType v ptr >>= putWord64 (unsafeCoerce x)
-qBytes v@(A (KMonth       !x)) !ptr = putType v ptr >>= putWord32 (unsafeCoerce x)
-qBytes v@(A (KDate        !x)) !ptr = putType v ptr >>= putWord32 (unsafeCoerce x)
-qBytes v@(A (KDateTime    !x)) !ptr = putType v ptr >>= putWord64 (unsafeCoerce x)
-qBytes v@(A (KTimespan    !x)) !ptr = putType v ptr >>= putWord64 (unsafeCoerce x)
-qBytes v@(A (KMinute      !x)) !ptr = putType v ptr >>= putWord32 (unsafeCoerce x)
-qBytes v@(A (KSecond      !x)) !ptr = putType v ptr >>= putWord32 (unsafeCoerce x)
-qBytes v@(A (KTime        !x)) !ptr = putType v ptr >>= putWord32 (unsafeCoerce x)
-qBytes v@(V (KBoolV       !x)) !ptr = putListHeader v ptr >>= putWord8V (unsafeCoerce x)
-qBytes v@(V (KByteV       !x)) !ptr = putListHeader v ptr >>= putWord8V (unsafeCoerce x)
-qBytes v@(V (KShortV      !x)) !ptr = putListHeader v ptr >>= putWord16V (unsafeCoerce x)
-qBytes v@(V (KIntV        !x)) !ptr = putListHeader v ptr >>= putWord32V (unsafeCoerce x)
-qBytes v@(V (KLongV       !x)) !ptr = putListHeader v ptr >>= putWord64V (unsafeCoerce x)
-qBytes v@(V (KRealV       !x)) !ptr = putListHeader v ptr >>= putWord32V (unsafeCoerce x)
-qBytes v@(V (KFloatV      !x)) !ptr = putListHeader v ptr >>= putWord64V (unsafeCoerce x)
-qBytes v@(V (KCharV       !x)) !ptr = putListHeader v ptr >>= putWord8V (unsafeCoerce x)
-qBytes v@(V (KSymV      _ !x)) !ptr = putListHeader v ptr >>= putWord8V (unsafeCoerce x)
-qBytes v@(V (KTimestampV  !x)) !ptr = putListHeader v ptr >>= putWord64V (unsafeCoerce x)
-qBytes v@(V (KMonthV      !x)) !ptr = putListHeader v ptr >>= putWord32V (unsafeCoerce x)
-qBytes v@(V (KDateV       !x)) !ptr = putListHeader v ptr >>= putWord32V (unsafeCoerce x)
-qBytes v@(V (KDateTimeV   !x)) !ptr = putListHeader v ptr >>= putWord64V (unsafeCoerce x)
-qBytes v@(V (KTimespanV   !x)) !ptr = putListHeader v ptr >>= putWord64V (unsafeCoerce x)
-qBytes v@(V (KMinuteV     !x)) !ptr = putListHeader v ptr >>= putWord32V (unsafeCoerce x)
-qBytes v@(V (KSecondV     !x)) !ptr = putListHeader v ptr >>= putWord32V (unsafeCoerce x)
-qBytes v@(V (KTimeV       !x)) !ptr = putListHeader v ptr >>= putWord32V (unsafeCoerce x)
-qBytes v@(KList           !x)  !ptr = putListHeader v ptr >>= \p -> V.foldM' (flip qBytes) p x
-qBytes v@(KTable        _ !x)  !ptr = putType v ptr >>= putAttr >>= \p2 -> poke p2 (99 :: Word8) >> V.foldM' (flip qBytes) (p2 `plusPtr` 1) x
-qBytes v@(KDict        !l !r)  !ptr = putType v ptr >>= qBytes (V l) >>= qBytes (V r)
-
-qIPCBytes :: MessageType -> Int -> Value -> Ptr Word8 -> IO ()
-qIPCBytes mode size qobj ptr = do
-       -- endianess,mode,0,0 - all Word8
-       poke ptr systemEndianess
-       poke (ptr `plusPtr` 1) (msgType mode)
-       poke (ptr `plusPtr` 2) (0::Word8)
-       poke (ptr `plusPtr` 3) (0::Word8)
-       -- put total IPC byte length
-       p1 <- putWord32 (unsafeCoerce (fromIntegral size :: Int32)) (ptr `plusPtr` 4)
-       -- generate IPC bytes for Q object
-       void $! qBytes qobj p1
-{-# INLINE qIPCBytes #-}
-
-qIPC :: MessageType -> Value -> ByteString
+qIPC :: MessageType -> Value -> Builder
 qIPC x y = let bsize = 8 + KT.size y
-           in unsafeCreate bsize (qIPCBytes x bsize y)
+            in qIPCBytes x bsize y
 {-# INLINE qIPC #-}
 
--- $serializer
---
--- Some haddocks on the serializer.
+qIPCBytes :: MessageType -> Int -> Value -> Builder
+qIPCBytes mode size qobj =
+  -- endianess,mode,0,0 - all Word8
+  Blaze.fromWord8 systemEndianess <>
+  Blaze.fromWord8 (msgType mode)  <>
+  Blaze.fromWord8 0               <>
+  Blaze.fromWord8 0               <>
+  -- put total IPC byte length
+  Blaze.fromWord32host (fromIntegral size) <>
+  -- generate IPC bytes for Q object
+  qBytes qobj
+{-# INLINE qIPCBytes #-}
 
-asyncIPC :: Value -> ByteString
-asyncIPC = qIPC Async
-{-# NOINLINE asyncIPC #-}
+-- | Function to build Q IPC representation (except message header)
+-- TODO: Get rid of all these unsafeCoerce calls, it's unsanitary
+qBytes :: Value -> Builder
+qBytes v@(A (KBool        !x)) = putType v <> Blaze.fromWord8      x
+qBytes v@(A (KByte        !x)) = putType v <> Blaze.fromWord8      x
+qBytes v@(A (KShort       !x)) = putType v <> Blaze.fromWord16host (unsafeCoerce x)
+qBytes v@(A (KInt         !x)) = putType v <> Blaze.fromWord32host (unsafeCoerce x)
+qBytes v@(A (KLong        !x)) = putType v <> Blaze.fromWord64host (unsafeCoerce x)
+qBytes v@(A (KReal        !x)) = putType v <> Blaze.fromWord32host (unsafeCoerce x)
+qBytes v@(A (KFloat       !x)) = putType v <> Blaze.fromWord64host (unsafeCoerce x)
+qBytes v@(A (KChar        !x)) = putType v <> Blaze.fromWord8      (unsafeCoerce x)
+qBytes v@(A (KSym         !x)) = putType v <> fromWord8V           (unsafeCoerce x)
+qBytes v@(A (KTimestamp   !x)) = putType v <> Blaze.fromWord64host (unsafeCoerce x)
+qBytes v@(A (KMonth       !x)) = putType v <> Blaze.fromWord32host (unsafeCoerce x)
+qBytes v@(A (KDate        !x)) = putType v <> Blaze.fromWord32host (unsafeCoerce x)
+qBytes v@(A (KDateTime    !x)) = putType v <> Blaze.fromWord64host (unsafeCoerce x)
+qBytes v@(A (KTimespan    !x)) = putType v <> Blaze.fromWord64host (unsafeCoerce x)
+qBytes v@(A (KMinute      !x)) = putType v <> Blaze.fromWord32host (unsafeCoerce x)
+qBytes v@(A (KSecond      !x)) = putType v <> Blaze.fromWord32host (unsafeCoerce x)
+qBytes v@(A (KTime        !x)) = putType v <> Blaze.fromWord32host (unsafeCoerce x)
+qBytes v@(V (KBoolV       !x)) = putListHeader v <> fromWord8V  (unsafeCoerce x)
+qBytes v@(V (KByteV       !x)) = putListHeader v <> fromWord8V  (unsafeCoerce x)
+qBytes v@(V (KShortV      !x)) = putListHeader v <> fromWord16V (unsafeCoerce x)
+qBytes v@(V (KIntV        !x)) = putListHeader v <> fromWord32V (unsafeCoerce x)
+qBytes v@(V (KLongV       !x)) = putListHeader v <> fromWord64V (unsafeCoerce x)
+qBytes v@(V (KRealV       !x)) = putListHeader v <> fromWord32V (unsafeCoerce x)
+qBytes v@(V (KFloatV      !x)) = putListHeader v <> fromWord64V (unsafeCoerce x)
+qBytes v@(V (KCharV       !x)) = putListHeader v <> fromWord8V (unsafeCoerce x)
+qBytes v@(V (KSymV      _ !x)) = putListHeader v <> fromWord8V (unsafeCoerce x)
+qBytes v@(V (KTimestampV  !x)) = putListHeader v <> fromWord64V (unsafeCoerce x)
+qBytes v@(V (KMonthV      !x)) = putListHeader v <> fromWord32V (unsafeCoerce x)
+qBytes v@(V (KDateV       !x)) = putListHeader v <> fromWord32V (unsafeCoerce x)
+qBytes v@(V (KDateTimeV   !x)) = putListHeader v <> fromWord64V (unsafeCoerce x)
+qBytes v@(V (KTimespanV   !x)) = putListHeader v <> fromWord64V (unsafeCoerce x)
+qBytes v@(V (KMinuteV     !x)) = putListHeader v <> fromWord32V (unsafeCoerce x)
+qBytes v@(V (KSecondV     !x)) = putListHeader v <> fromWord32V (unsafeCoerce x)
+qBytes v@(V (KTimeV       !x)) = putListHeader v <> fromWord32V (unsafeCoerce x)
+qBytes v@(KList           !x)  = putListHeader v <> fromValueV x
+qBytes v@(KTable        _ !x)  = putType v       <> putAttr <> Blaze.fromWord8 99 <> fromValueV x
+qBytes v@(KDict        !l !r)  = putType v       <> qBytes (V l) <> qBytes (V r)
 
-syncIPC :: Value -> ByteString
-syncIPC = qIPC Sync
-{-# NOINLINE syncIPC #-}
+-----------------------------------------------------------------------------
+-- Helper functions for the serialiser
+
+-- | Function to generate putWord<N>V functions, N = 8,16,32,64
+genFnFromWordNVB :: (SV.Storable a) => (a -> Builder) -> SV.Vector a -> Builder
+genFnFromWordNVB f = SV.foldl' (\a b -> a <> f b) mempty
+{-# INLINEABLE genFnFromWordNVB #-}
+{-# SPECIALIZE genFnFromWordNVB :: (SV.Storable Word8)  => (Word8  -> Builder) -> SV.Vector Word8  -> Builder #-}
+{-# SPECIALIZE genFnFromWordNVB :: (SV.Storable Word16) => (Word16 -> Builder) -> SV.Vector Word16 -> Builder #-}
+{-# SPECIALIZE genFnFromWordNVB :: (SV.Storable Word32) => (Word32 -> Builder) -> SV.Vector Word32 -> Builder #-}
+{-# SPECIALIZE genFnFromWordNVB :: (SV.Storable Word64) => (Word64 -> Builder) -> SV.Vector Word64 -> Builder #-}
+
+fromWord8V :: SV.Vector Word8 -> Builder
+fromWord8V = genFnFromWordNVB Blaze.fromWord8
+{-# INLINE fromWord8V #-}
+
+fromWord16V :: SV.Vector Word16 -> Builder
+fromWord16V = genFnFromWordNVB Blaze.fromWord16host
+{-# INLINE fromWord16V #-}
+
+fromWord32V :: SV.Vector Word32 -> Builder
+fromWord32V = genFnFromWordNVB Blaze.fromWord32host
+{-# INLINE fromWord32V #-}
+
+fromWord64V :: SV.Vector Word64 -> Builder
+fromWord64V = genFnFromWordNVB Blaze.fromWord64host
+{-# INLINE fromWord64V #-}
+
+-- | Function to write Q type in ByteString.
+putType :: Value -> Builder
+putType = Blaze.fromWord8 . KT.qType
+{-# INLINE putType #-}
+
+-- write type, attr, length for list elements.
+putListHeader :: Value -> Builder
+putListHeader x
+  = putType x <>
+    putAttr   <>
+    (Blaze.fromWord32host . fromIntegral $ KT.numElements x)
+{-# INLINE putListHeader #-}
+
+-- | Function to write Q attribute.
+-- TODO: Extend this.
+putAttr :: Builder
+putAttr = Blaze.fromWord8 0
+{-# INLINE putAttr #-}
+
+fromValueV :: V.Vector Value -> Builder
+fromValueV = V.foldl' (\b v' -> b <> qBytes v') mempty
+{-# INLINE fromValueV #-}
 
 -- $parser
 --
@@ -530,6 +436,9 @@ anyWord64le :: A.Parser Word64
 anyWord64le = anyWordN $ pack . B.reverse
 {-# INLINE anyWord64le #-}
 
+-----------------------------------------------------------------------------
+-- Helper functions for the parser
+
 -- Copied from http://stackoverflow.com/a/7002812/263061.
 wordToFloat :: Word32 -> Float
 wordToFloat !x = runST (cast x)
@@ -547,3 +456,69 @@ cast x = newArray (0 :: Int, 0) x >>= castSTUArray >>= flip readArray 0
                         MArray (STUArray Word32) Float (ST Word32)) => Word32 -> ST Word32 Float #-}
 {-# SPECIALIZE cast :: (MArray (STUArray Word64) Word64 (ST Word64),
                         MArray (STUArray Word64) Double (ST Word64)) => Word64 -> ST Word64 Double #-}
+
+-----------------------------------------------------------------------------
+-- General helper functions and types.
+
+bigEndian :: Word8
+bigEndian = 0
+{-# INLINE bigEndian #-}
+
+littleEndian :: Word8
+littleEndian = 1
+{-# INLINE littleEndian #-}
+
+-- | Gets the byte to represent the endianess.
+endian :: End.Endianness -> Word8
+endian End.BigEndian    = bigEndian
+endian End.LittleEndian = littleEndian
+{-# INLINE endian #-}
+
+-- | Endianess of the system mapped to correct byte in Kdb IPC.
+systemEndianess :: Word8
+systemEndianess = endian End.getSystemEndianness
+{-# INLINE systemEndianess #-}
+
+-- | Allowed message types.
+data MessageType
+    = Async
+    | Sync
+    | Response
+
+-- | Gets the correct byte for the message type in Kdb IPC.
+msgType :: MessageType -> Word8
+msgType Async    = 0
+msgType Sync     = 1
+msgType Response = 2
+{-# INLINE msgType #-}
+
+-- | Version of the Kdb+ IPC protocol.
+-- TODO: Disable some of the features, as compression is not supported.
+data Version
+    = -- | no compression, no timestamp, no timespan, no uuid
+      V_25
+
+      -- | compression, timestamp, timespan
+    | V_26 | V_28
+
+      -- | compression, timestamp, timespan, uuid
+    | V_30
+    deriving (Show, Eq)
+
+-- | Gets the capability byte for particular @Version@.
+capability :: Version -> Word8
+capability V_25 = 0
+capability V_26 = 1
+capability V_28 = 2
+capability V_30 = 3
+{-# INLINE capability #-}
+
+capabilityParser :: B.ByteString -> Maybe Version
+capabilityParser bs | B.length bs /= 1 = Nothing
+capabilityParser bs = case B.head bs of
+  0 -> Just V_25
+  1 -> Just V_26
+  2 -> Just V_28
+  3 -> Just V_30
+  _ -> Nothing
+{-# INLINE capabilityParser #-}

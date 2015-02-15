@@ -11,6 +11,7 @@
 -----------------------------------------------------------------------------
 module Database.Kdb.Internal.IPCTest (tests) where
 
+import qualified Blaze.ByteString.Builder             as Blaze
 import           Control.Applicative                  ((<$>), (<*))
 import           Control.DeepSeq                      (deepseq)
 import qualified Data.Attoparsec                      as A
@@ -64,14 +65,14 @@ testCases f = f <$> t
 
 serializationTest :: SimpleTestCase -> TestTree
 serializationTest (msg, actual, expected) = testCase msg $ do
-        let actualIPC     = IPC.asyncIPC actual
+        let actualIPC    = Blaze.toByteString $ IPC.asyncIPC actual
             msg' = unlines [
                 msg
               , "   actual  =" ++ (unpack . encode $ actualIPC)
               , "   expected=" ++ unpack expected
               , "   expectedValue=" ++ show actual
               ]
-        assertEqual msg' (fst . decode $ expected) actualIPC
+        assertEqual msg'  (fst . decode $ expected) actualIPC
 
 deserializationTest :: SimpleTestCase -> TestTree
 deserializationTest (msg, actual, expected) = testCase msg $ do
@@ -118,6 +119,7 @@ todToMilli = TimeOfDay 12 12 12.123
 -- | Test cases for all types.
 --
 -- System endianess gets prepended.
+-- TODO: add tests for empty vectors.
 t :: [SimpleTestCase]
 t =
   let prepare (a, b, c) = (a, deepseq b b, B.append end c)

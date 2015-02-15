@@ -126,8 +126,7 @@ module Database.Kdb.Internal.Types.KdbTypes (
 import           Control.Monad                             (foldM_)
 import           Data.ByteString                           (ByteString)
 import qualified Data.ByteString                           as B
-import           Data.Int                                  (Int16, Int32, Int64,
-                                                            Int8)
+import           Data.Int                                  (Int16, Int32, Int64)
 import           Data.List                                 (foldl')
 import qualified Data.Time                                 as Time
 import           Data.Typeable                             (Typeable)
@@ -476,7 +475,7 @@ dictT = 99
 {-# INLINE dictT #-}
 
 -- | Gets q type of the object.
-qType :: Value -> Int8
+qType :: Value -> Word8
 qType (A (KBool         _)) = fromIntegral boolT
 qType (A (KByte         _)) = fromIntegral byteT
 qType (A (KShort        _)) = fromIntegral shortT
@@ -521,7 +520,7 @@ qType (KDict          _ _)  = fromIntegral dictT
 -- Some haddocks on the utility functions.
 
 -- | Size of the atom header.
-atomSize :: Storable a => a ->  Int
+atomSize :: Storable a => a -> Int
 atomSize a = 1 + sizeOf a
 {-# INLINE atomSize #-}
 

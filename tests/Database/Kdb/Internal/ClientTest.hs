@@ -14,15 +14,14 @@ module Database.Kdb.Internal.ClientTest (tests) where
 
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Class               (lift)
-import           Control.Monad.Trans.Resource            (runResourceT)
 import           Control.Monad.Trans.Resource
+import           Database.Kdb.Internal.Client            (close, writeKdb)
 import           Database.Kdb.Internal.TestUtils         (assertException,
-                                                          findFreePort,
-                                                          kdbConnection,
-                                                          startKdb)
+                                                          schema, findFreePort,
+                                                          kdbConnection, pass,
+                                                          startKdb, user)
 import           Database.Kdb.Internal.Types.ClientTypes (InvalidCredentials (..))
-import           System.IO
-import           System.IO.Error                         (IOError (..))
+import           Database.Kdb.Internal.Types.KdbTypes    (charV)
 import           Test.Tasty
 import           Test.Tasty.HUnit                        (Assertion, testCase)
 
@@ -34,6 +33,7 @@ unitTests :: TestTree
 unitTests = testGroup "HUnit" [
     testCase "Invalid credentials" invalidCredentialsTest
   , testCase "Unknown host" unknownHostTest
+  , testCase "Use after close" useAfterCloseTest
   ]
 
 -- | Starts up a kdb process and tries to connect to it with invalid credentials.
@@ -50,6 +50,22 @@ unknownHostTest :: Assertion
 unknownHostTest = runResourceT $ do
   -- Startup kdb
   freePort <- lift . liftIO $ findFreePort
-  --return ()
+
   -- Connect to kdb and expect @IOError@.
   assertException (\(_::IOError) -> True) (kdbConnection "someuser" "somepass" freePort)
+
+useAfterCloseTest :: Assertion
+useAfterCloseTest = runResourceT $ do
+
+    -- Startup kdb
+    freePort <- startKdb
+
+    -- Connect to kdb
+    con <- kdbConnection user pass freePort
+
+    -- Close the connection immediately
+    close con
+
+    -- Try to send something
+    assertException (\(_::IOError) -> True) (writeKdb (charV schema) con)
+

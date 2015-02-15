@@ -26,20 +26,24 @@ module Database.Kdb.Internal.Client (
   )
   where
 
+import           Blaze.ByteString.Builder                 (Builder)
+import qualified Blaze.ByteString.Builder                 as Blaze
+import qualified Blaze.ByteString.Builder.Internal.Buffer as Blaze
 import           Control.Lens
-import           Control.Monad.Catch                     (MonadCatch, MonadMask)
-import qualified Control.Monad.Catch                     as E
+import           Control.Monad.Catch                      (MonadCatch,
+                                                           MonadMask)
+import qualified Control.Monad.Catch                      as E
 import           Control.Monad.IO.Class
-import qualified Data.ByteString.Char8                   as B8
-import qualified Database.Kdb.Internal.IPC               as IPC
-import           Database.Kdb.Internal.Types.ClientTypes (Connection (..), ConnectionSettings (..), InvalidCredentials (..),
-                                                          inputStream,
-                                                          loginBytes,
-                                                          outputStream)
-import qualified Database.Kdb.Internal.Types.KdbTypes    as Kdb
-import qualified Network.Socket                          as NS
-import qualified System.IO.Streams                       as Streams
-import qualified System.IO.Streams.Attoparsec            as Streams
+import qualified Data.ByteString.Char8                    as B8
+import qualified Database.Kdb.Internal.IPC                as IPC
+import           Database.Kdb.Internal.Types.ClientTypes  (Connection (..), ConnectionSettings (..), InvalidCredentials (..),
+                                                           inputStream,
+                                                           loginBytes,
+                                                           outputStream)
+import qualified Database.Kdb.Internal.Types.KdbTypes     as Kdb
+import qualified Network.Socket                           as NS
+import qualified System.IO.Streams                        as Streams
+import qualified System.IO.Streams.Attoparsec             as Streams
 
 -----------------------------------------------------------------------------
 -- $connection
@@ -69,11 +73,13 @@ connect cs@ConnectionSettings {..} =
 
     -- Establishes the connection
     open socket = do
-      (is, os)
+      (is, osNaked)
           <- Streams.socketToStreamsWithBufferSize _receiveBufferSize
                                                    socket
+      os <- Streams.unsafeBuilderStream (Blaze.allocBuffer _writeBufferSize) osNaked
+
       -- Write the login bytes
-      Streams.write (Just $ loginBytes cs) os
+      writeAndFlush (loginBytes cs) os
 
       -- Read and parse the capability
       capabilityBytes <- readCapability is
@@ -113,10 +119,8 @@ writeKdb :: (MonadIO m, MonadCatch m)
          => Kdb.Value
          -> Connection
          -> m ()
-writeKdb v = withConnection $ \c -> liftIO $ do
-  let os = c ^. outputStream
-      serialised  = Just $ IPC.asyncIPC v
-  Streams.write serialised os
+writeKdb v = withConnection (liftIO . write)
+  where write c = writeAndFlush (IPC.asyncIPC v) (c ^. outputStream)
 
 -- | Writes the value to Kdb and expects a synchronous reply.
 --
@@ -128,8 +132,7 @@ query :: (MonadIO m, MonadCatch m)
 query v = withConnection $ \c -> liftIO $ do
   let is = c ^. inputStream
       os = c ^. outputStream
-      serialised  = Just $ IPC.syncIPC v
-  Streams.write serialised os
+  writeAndFlush (IPC.syncIPCB v) os
   Streams.parseFromStream IPC.ipcParser is
 
 -- | Runs @action@ or closes the connection and rethrows any exceptions.
@@ -189,3 +192,8 @@ firstOrException ex []     = E.throwM ex
 firstOrException _  (ea:eas) = ea >>= \e -> case e of
      Right s  -> return $! s
      Left  ex -> firstOrException ex eas
+
+writeAndFlush :: Builder -> Streams.OutputStream Builder -> IO ()
+writeAndFlush b os = do
+  Streams.write (Just b)           os
+  Streams.write (Just Blaze.flush) os

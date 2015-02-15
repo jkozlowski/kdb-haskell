@@ -19,7 +19,7 @@ module Database.Kdb.Internal.Types.ClientTypes (
     -- * Settings for the connection and lenses
     -- $connectionsettings
     ConnectionSettings(..)
-  , host, port, username, password, receiveBufferSize, version
+  , host, port, username, password, writeBufferSize, receiveBufferSize, version
 
     -- * The main connection type
     -- $connection
@@ -31,6 +31,7 @@ module Database.Kdb.Internal.Types.ClientTypes (
   , InvalidCredentials(..)
   ) where
 
+import           Blaze.ByteString.Builder  (Builder)
 import           Control.Lens
 import           Control.Monad.Catch       (Exception)
 import           Data.ByteString           (ByteString)
@@ -70,7 +71,10 @@ data ConnectionSettings = ConnectionSettings
     -- ^ Password (possibly empty)
     , _password          :: !(Maybe ByteString)
 
-    -- ^ Size of the receive buffer size
+    -- ^ Size of the write buffer (in bytes)
+    , _writeBufferSize   :: !Int
+
+    -- ^ Size of the receive buffer (in bytes)
     , _receiveBufferSize :: !Int
 
     -- ^ Version of the protocol
@@ -83,6 +87,7 @@ data ConnectionSettings = ConnectionSettings
 -- * port = 5010
 -- * username = Nothing
 -- * password = Nothing
+-- * writeBufferSize = 4096
 -- * receiveBufferSize = 4096
 -- * version = V_30
 instance Default ConnectionSettings where
@@ -92,6 +97,7 @@ instance Default ConnectionSettings where
         , _port = 5010
         , _username = Nothing
         , _password = Nothing
+        , _writeBufferSize = 4096
         , _receiveBufferSize = 4096
         , _version = IPC.V_30
         }
@@ -106,14 +112,14 @@ data Connection = Connection
     { _settings     :: !ConnectionSettings
     , _socket       :: !Socket
     , _inputStream  :: !(Streams.InputStream ByteString)
-    , _outputStream :: !(Streams.OutputStream ByteString)
+    , _outputStream :: !(Streams.OutputStream Builder)
     }
 
 makeLenses ''ConnectionSettings
 makeLenses ''Connection
 
 -- | Creates a login message for these @ConnectionSettings@.
-loginBytes :: ConnectionSettings -> ByteString
+loginBytes :: ConnectionSettings -> Builder
 loginBytes ConnectionSettings {..} = IPC.loginBytes _username _password _version
 {-# INLINE loginBytes #-}
 
@@ -123,7 +129,7 @@ loginBytes ConnectionSettings {..} = IPC.loginBytes _username _password _version
 -- The possible exceptions.
 
 -- | Thrown by the 'connect' function when Kdb+ rejects the credentials.
-data InvalidCredentials = InvalidCredentials 
+data InvalidCredentials = InvalidCredentials
  deriving (Eq, Typeable)
 
 instance Show InvalidCredentials where

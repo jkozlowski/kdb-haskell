@@ -38,7 +38,7 @@ module Database.Kdb.Internal.TestUtils (
 import           Control.Applicative                     (pure, (<$>), (<*>))
 import           Control.Arrow                           ((***))
 import           Control.Lens
-import           Control.Monad                           (guard, void)
+import           Control.Monad                           (void)
 import           Control.Monad.Catch                     (Exception,
                                                           Handler (..),
                                                           MonadCatch)

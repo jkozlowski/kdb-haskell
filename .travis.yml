@@ -22,7 +22,7 @@ before_install:
   - travis_retry cabal install cabal-install
   - popd
   - cabal sandbox init
-  - travis_retry cabal install hpc-coveralls --avoid-reinstalls
+  - travis_retry cabal install hpc-coveralls --force-reinstalls
 
 script:
   - cabal install --only-dependencies --enable-tests

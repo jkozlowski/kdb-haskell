@@ -5,7 +5,9 @@ let pkg = haskellngPackages.callPackage
              , directory, io-streams, lens, mtl, network, exceptions, process
              , QuickCheck, quickcheck-io, resourcet, retry, stdenv, system-filepath
              , tasty, tasty-hunit, tasty-quickcheck, text, time, transformers, vector
-             , data-default-class
+             , data-default-class, blaze-builder
+             
+             , criterion
              }:
              mkDerivation {
                pname = "kdb-haskell";
@@ -14,6 +16,9 @@ let pkg = haskellngPackages.callPackage
                buildDepends = [
                  array attoparsec base bytestring cpu deepseq io-streams QuickCheck
                  time vector data-default-class network exceptions transformers lens
+                 blaze-builder
+                 
+                 criterion
                ];
                buildTools = [
                  haskellngPackages.ghc-mod
@@ -21,6 +26,7 @@ let pkg = haskellngPackages.callPackage
                testDepends = [
                  array attoparsec base bytestring cpu deepseq io-streams QuickCheck
                  time vector data-default-class network exceptions transformers lens
+                 blaze-builder
                  
                  base16-bytestring binary Cabal
                  containers deepseq-generics directory
@@ -33,5 +39,3 @@ let pkg = haskellngPackages.callPackage
              }) {};
 in
   pkg.env
-                                                                                                                                           
-
