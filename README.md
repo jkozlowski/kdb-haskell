@@ -18,7 +18,6 @@ Plans/Open Issues
   to see if it is possible to add some type checking and inference.
 - [ ] [ToKDB/FromKDB](https://github.com/jkozlowski/kdb-haskell/issues/6)
 - [ ] [Add remaining types](https://github.com/jkozlowski/kdb-haskell/issues/8)
-- [ ] [Move IO code from tests](https://github.com/jkozlowski/kdb-haskell/issues/9)
 - [ ] [Export public API](https://github.com/jkozlowski/kdb-haskell/issues/10)
 
 Contributing
