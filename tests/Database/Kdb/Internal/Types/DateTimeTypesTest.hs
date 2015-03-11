@@ -10,19 +10,19 @@
 -----------------------------------------------------------------------------
 module Database.Kdb.Internal.Types.DateTimeTypesTest (tests) where
 
-import           Data.Time                                 (fromGregorian)
-import           Database.Kdb.Internal.TestUtils           (DayPrecision (..),
-                                                            TimePrecision (..),
-                                                            dayInScale, nominalDiffTimeWithPrecision,
-                                                            todsInScale,
-                                                            utcTimeInScale,
-                                                            (@~=))
-import           Database.Kdb.Internal.Types.DateTimeTypes
-import           Test.QuickCheck                           (forAll)
-import           Test.QuickCheck.IO                        (propertyIO)
-import           Test.Tasty                                (TestTree, testGroup)
-import           Test.Tasty.HUnit                          (testCase, (@?=))
-import           Test.Tasty.QuickCheck                     (testProperty)
+import           Data.Time                       (fromGregorian)
+import           Database.Kdb
+import           Database.Kdb.Internal.TestUtils (DayPrecision (..),
+                                                  TimePrecision (..),
+                                                  dayInScale,
+                                                  nominalDiffTimeWithPrecision,
+                                                  todsInScale, utcTimeInScale,
+                                                  (@~=))
+import           Test.QuickCheck                 (forAll)
+import           Test.QuickCheck.IO              (propertyIO)
+import           Test.Tasty                      (TestTree, testGroup)
+import           Test.Tasty.HUnit                (testCase, (@?=))
+import           Test.Tasty.QuickCheck           (testProperty)
 
 tests :: TestTree
 tests = testGroup "Database.Kdb.Internal.DateTimeTypesTest" [ unitTests, qcProps ]

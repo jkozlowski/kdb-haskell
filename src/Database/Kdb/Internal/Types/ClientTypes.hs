@@ -24,7 +24,7 @@ module Database.Kdb.Internal.Types.ClientTypes (
     -- * The main connection type
     -- $connection
   , Connection(..), settings, socket, inputStream, outputStream
-  , loginBytes
+  , loginBytesFromConnectionSettings
 
     -- * Exception types
     -- $exceptions
@@ -119,9 +119,9 @@ makeLenses ''ConnectionSettings
 makeLenses ''Connection
 
 -- | Creates a login message for these @ConnectionSettings@.
-loginBytes :: ConnectionSettings -> Builder
-loginBytes ConnectionSettings {..} = IPC.loginBytes _username _password _version
-{-# INLINE loginBytes #-}
+loginBytesFromConnectionSettings :: ConnectionSettings -> Builder
+loginBytesFromConnectionSettings ConnectionSettings {..} = IPC.loginBytes _username _password _version
+{-# INLINE loginBytesFromConnectionSettings #-}
 
 -----------------------------------------------------------------------------
 -- $exceptions

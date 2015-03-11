@@ -11,38 +11,30 @@
 -----------------------------------------------------------------------------
 module Database.Kdb.Internal.IPCTest (tests) where
 
-import qualified Blaze.ByteString.Builder             as Blaze
-import           Control.Applicative                  ((<$>), (<*))
-import           Control.DeepSeq                      (deepseq)
-import qualified Data.Attoparsec                      as A
-import qualified Data.ByteString                      as B
-import           Data.ByteString.Base16               (decode, encode)
-import           Data.ByteString.Char8                (ByteString, unpack)
-import           Data.Time                            (Day, NominalDiffTime,
-                                                       TimeOfDay (..),
-                                                       UTCTime (..),
-                                                       diffUTCTime,
-                                                       fromGregorian,
-                                                       timeOfDayToTime,
-                                                       timeOfDayToTime)
-import qualified Database.Kdb.Internal.IPC            as IPC
-import           Database.Kdb.Internal.Types.KdbTypes (Value, bool, boolV, byte,
-                                                       byteV, char, charV, date,
-                                                       dateTime, dateTimeV,
-                                                       dateV, dict, float,
-                                                       floatV, int, intV, list,
-                                                       long, longV, longVV,
-                                                       minute, minuteV, month,
-                                                       monthV, real, realV, s,
-                                                       second, secondV, short,
-                                                       shortV, symV, symVV,
-                                                       table, time, timeV,
-                                                       timespan, timespanV,
-                                                       timestamp, timestampV)
-import qualified System.Endian                        as End
+import qualified Blaze.ByteString.Builder as Blaze
+import           Control.Applicative      ((<$>), (<*))
+import           Control.DeepSeq          (deepseq)
+import qualified Data.Attoparsec          as A
+import qualified Data.ByteString          as B
+import           Data.ByteString.Base16   (decode, encode)
+import           Data.ByteString.Char8    (ByteString, unpack)
+import           Data.Time                (Day, NominalDiffTime, TimeOfDay (..),
+                                           UTCTime (..), diffUTCTime,
+                                           fromGregorian, timeOfDayToTime,
+                                           timeOfDayToTime)
+import           Database.Kdb             (Value, bool, boolV, byte, byteV,
+                                           char, charV, date, dateTime,
+                                           dateTimeV, dateV, dict, float,
+                                           floatV, int, intV, list, long, longV,
+                                           longVV, minute, minuteV, month,
+                                           monthV, real, realV, s, second,
+                                           secondV, short, shortV, symV, symVV,
+                                           table, time, timeV, timespan,
+                                           timespanV, timestamp, timestampV)
+import qualified Database.Kdb             as Kdb
+import qualified System.Endian            as End
 import           Test.Tasty
-import           Test.Tasty.HUnit                     (assertEqual,
-                                                       assertFailure, testCase)
+import           Test.Tasty.HUnit         (assertEqual, assertFailure, testCase)
 
 tests :: TestTree
 tests = testGroup "Database.Kdb.Internal.IPC" [ qcProps, unitTests ]
@@ -65,7 +57,7 @@ testCases f = f <$> t
 
 serializationTest :: SimpleTestCase -> TestTree
 serializationTest (msg, actual, expected) = testCase msg $ do
-        let actualIPC    = Blaze.toByteString $ IPC.asyncIPC actual
+        let actualIPC    = Blaze.toByteString $ Kdb.asyncIPC actual
             msg' = unlines [
                 msg
               , "   actual  =" ++ (unpack . encode $ actualIPC)
@@ -76,7 +68,7 @@ serializationTest (msg, actual, expected) = testCase msg $ do
 
 deserializationTest :: SimpleTestCase -> TestTree
 deserializationTest (msg, actual, expected) = testCase msg $ do
-        let actualDecoded = A.parseOnly (IPC.ipcParser <* A.endOfInput) (fst . decode $ expected)
+        let actualDecoded = A.parseOnly (Kdb.ipcParser <* A.endOfInput) (fst . decode $ expected)
         case actualDecoded of
           Left m  -> assertFailure m
           Right v -> assertEqual msg v actual

@@ -37,8 +37,7 @@ import           Control.Monad.IO.Class
 import qualified Data.ByteString.Char8                    as B8
 import qualified Database.Kdb.Internal.IPC                as IPC
 import           Database.Kdb.Internal.Types.ClientTypes  (Connection (..), ConnectionSettings (..), InvalidCredentials (..),
-                                                           inputStream,
-                                                           loginBytes,
+                                                           inputStream, loginBytesFromConnectionSettings,
                                                            outputStream)
 import qualified Database.Kdb.Internal.Types.KdbTypes     as Kdb
 import qualified Network.Socket                           as NS
@@ -79,7 +78,7 @@ connect cs@ConnectionSettings {..} =
       os <- Streams.unsafeBuilderStream (Blaze.allocBuffer _writeBufferSize) osNaked
 
       -- Write the login bytes
-      writeAndFlush (loginBytes cs) os
+      writeAndFlush (loginBytesFromConnectionSettings cs) os
 
       -- Read and parse the capability
       capabilityBytes <- readCapability is

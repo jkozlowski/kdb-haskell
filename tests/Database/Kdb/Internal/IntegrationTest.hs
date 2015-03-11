@@ -14,22 +14,19 @@
 -----------------------------------------------------------------------------
 module Database.Kdb.Internal.IntegrationTest (tests) where
 
-import           Control.Monad                        (forM_)
+import           Control.Monad                   (forM_)
 import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Class            (lift)
-import           Control.Monad.Trans.Resource         (runResourceT)
-import           Data.Monoid                          ((<>))
-import qualified Database.Kdb.Internal.Client         as Client
-import           Database.Kdb.Internal.TestUtils      (kdbConnection, pass,
-                                                       randomRows, schema,
-                                                       startKdb, tableName,
-                                                       user)
-import           Database.Kdb.Internal.Types.KdbTypes
-import qualified Database.Kdb.Internal.Types.KdbTypes as KT
-import           Prelude                              hiding (FilePath)
+import           Control.Monad.Trans.Class       (lift)
+import           Control.Monad.Trans.Resource    (runResourceT)
+import           Data.Monoid                     ((<>))
+import           Database.Kdb
+import qualified Database.Kdb                    as Kdb
+import           Database.Kdb.Internal.TestUtils (kdbConnection, pass,
+                                                  randomRows, schema, startKdb,
+                                                  tableName, user)
+import           Prelude                         hiding (FilePath)
 import           Test.Tasty
-import           Test.Tasty.HUnit                     (Assertion, testCase,
-                                                       (@?=))
+import           Test.Tasty.HUnit                (Assertion, testCase, (@?=))
 
 tests :: TestTree
 tests = testGroup "Database.Kdb.Internal.IntegrationTest" [ unitTests ]
@@ -57,17 +54,17 @@ integrationTest = do
     con <- kdbConnection user pass freePort
 
     -- send the schema
-    lift . liftIO $ Client.writeKdb (charV schema) con
+    lift . liftIO $ Kdb.writeKdb (charV schema) con
 
     -- Gen the rows
     rows <- lift $ randomRows numRows
 
     -- Send the rows
-    lift $ forM_ rows $ \x -> Client.writeKdb x con
+    lift $ forM_ rows $ \x -> Kdb.writeKdb x con
 
     -- Select the rows
-    value <- lift $ Client.query selectCount con
-    lift $ value @?= KT.long numRows
+    value <- lift $ Kdb.query selectCount con
+    lift $ value @?= Kdb.long numRows
 
 -----------------------------------
 -- Private utility functions

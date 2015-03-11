@@ -1,6 +1,6 @@
 name:               kdb-haskell
 version:            0.1.0
-synopsis:           Haskell bindings for KDB+.
+synopsis:           Low-level Haskell bindings for KDB+.
 description:        This package implements binding for KDB+ database (kx.com) in Haskell.
                     Compression is currently not supported.
 category:           Finance, Database
@@ -30,7 +30,7 @@ flag documentation
       False
 
 library
-  exposed-modules:    
+  exposed-modules:    Database.Kdb
   other-modules:      Database.Kdb.Internal.Types.KdbTypes
                     , Database.Kdb.Internal.Types.DateTimeTypes
                     , Database.Kdb.Internal.Types.ClientTypes

@@ -13,17 +13,15 @@
 module Database.Kdb.Internal.ClientTest (tests) where
 
 import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Class               (lift)
+import           Control.Monad.Trans.Class       (lift)
 import           Control.Monad.Trans.Resource
-import           Database.Kdb.Internal.Client            (close, writeKdb)
-import           Database.Kdb.Internal.TestUtils         (assertException,
-                                                          schema, findFreePort,
-                                                          kdbConnection, pass,
-                                                          startKdb, user)
-import           Database.Kdb.Internal.Types.ClientTypes (InvalidCredentials (..))
-import           Database.Kdb.Internal.Types.KdbTypes    (charV)
+import           Database.Kdb                    (InvalidCredentials (..),
+                                                  charV, close, writeKdb)
+import           Database.Kdb.Internal.TestUtils (assertException, findFreePort,
+                                                  kdbConnection, pass, schema,
+                                                  startKdb, user)
 import           Test.Tasty
-import           Test.Tasty.HUnit                        (Assertion, testCase)
+import           Test.Tasty.HUnit                (Assertion, testCase)
 
 
 tests :: TestTree
