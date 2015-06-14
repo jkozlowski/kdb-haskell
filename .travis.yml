@@ -1,10 +1,5 @@
-language: haskell
-ghc: 7.8.3
+cache: apt
 
-cache:
-  directories:
-  - ~/.cabal
-  
 notifications:
   webhooks:
     urls:
@@ -14,24 +9,18 @@ notifications:
     on_start: false     # default: false
 
 before_install:
-  - sudo apt-get update -qq
+  - sh .travis/install-stack.sh
   - sudo apt-get install -qq --force-yes libgd2-xpm ia32-libs ia32-libs-multiarch
-  - cabal update
-  - pushd .
-  - cd ~/
-  - travis_retry cabal install cabal-install
-  - popd
-  - cabal sandbox init
-  - travis_retry cabal install hpc-coveralls --force-reinstalls
+  - stack --version
+  - stack setup
+  - stack install hpc-coveralls
 
 script:
-  - cabal install --only-dependencies --enable-tests
-  - cabal configure --enable-tests --enable-library-coverage
-  - cabal build
-  - run-cabal-test --show-details=always
-#  - hlint src
-#  - hlint tests
-#  - hlint benchmarks
+  - stack build
+  - stack test
+# Waiting on: https://github.com/commercialhaskell/stack/issues/222
+#  - find .
+#  - run-cabal-test --show-details=always
 
-after_script:
-  - hpc-coveralls --exclude-dir=tests kdb-haskell-tests
+#after_script:
+#  - hpc-coveralls --exclude-dir=tests kdb-haskell-tests

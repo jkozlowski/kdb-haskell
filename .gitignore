@@ -1,4 +1,5 @@
 dist
+dist-stack
 cabal-dev
 *.o
 *.hi
@@ -14,3 +15,4 @@ cabal.sandbox.config
 .idea
 out/
 report.html
+.stack-work

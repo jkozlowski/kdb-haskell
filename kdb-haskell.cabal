@@ -30,7 +30,7 @@ flag documentation
       False
 
 library
-  exposed-modules:    
+  exposed-modules:
   other-modules:      Database.Kdb.Internal.Types.KdbTypes
                     , Database.Kdb.Internal.Types.DateTimeTypes
                     , Database.Kdb.Internal.Types.ClientTypes
@@ -55,7 +55,7 @@ library
                      -funbox-strict-fields
 
 test-suite kdb-haskell-tests
-  hs-source-dirs:     src 
+  hs-source-dirs:     src
                     , tests
   main-is:            Test.hs
   type:               exitcode-stdio-1.0
