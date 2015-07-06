@@ -28,7 +28,7 @@ script:
   - stack test
 # Waiting on: https://github.com/commercialhaskell/stack/issues/222
   - find .
-  - stack exec run-cabal-test -- --show-details=always
+  #- stack exec run-cabal-test -- --show-details=always
 
 after_script:
   - stack exec hpc-coveralls -- --exclude-dir=tests kdb-haskell-tests
