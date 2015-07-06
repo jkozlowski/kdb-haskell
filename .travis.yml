@@ -20,13 +20,14 @@ before_install:
   - stack --version
   - stack setup
   - stack install hpc-coveralls
+  - export PATH="$HOME/.local/bin:$PATH"
 
 script:
   - stack build
   - stack test
 # Waiting on: https://github.com/commercialhaskell/stack/issues/222
   - find .
-#  - run-cabal-test --show-details=always
+  - run-cabal-test --show-details=always
 
-#after_script:
-#  - hpc-coveralls --exclude-dir=tests kdb-haskell-tests
+after_script:
+  - hpc-coveralls --exclude-dir=tests kdb-haskell-tests
