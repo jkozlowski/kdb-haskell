@@ -1,7 +1,10 @@
 ghc:
   - 7.8
 
-cache: apt
+cache: 
+  apt
+  directories:
+    - $HOME/.stack
 
 notifications:
   webhooks:
