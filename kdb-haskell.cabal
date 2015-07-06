@@ -86,6 +86,9 @@ test-suite kdb-haskell-tests
                     , Cabal
   ghc-options:       -Wall
                      -O0
+                     -fhpc 
+                     -hpcdir 
+                      .hpc
                      -funbox-strict-fields
 
 benchmark kdb-haskell-benchmark
