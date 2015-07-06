@@ -18,6 +18,7 @@ before_install:
   - sh .travis/install-stack.sh
   - sudo apt-get install -qq --force-yes libgd2-xpm ia32-libs ia32-libs-multiarch
   - stack --version
+  - stack --help
   - stack setup
   - stack install hpc-coveralls
   - export PATH="$HOME/.local/bin:$PATH"
