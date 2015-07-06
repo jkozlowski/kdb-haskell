@@ -16,7 +16,7 @@ before_install:
   - sudo apt-get install -qq --force-yes libgd2-xpm ia32-libs ia32-libs-multiarch
   - stack --version
   - stack setup
-#  - stack install hpc-coveralls
+  - stack install hpc-coveralls
 
 script:
   - stack build
